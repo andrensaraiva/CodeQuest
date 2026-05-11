@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  color: #effff4;
-  background: #080b0f;
+  color: var(--cq-text);
+  background: var(--cq-bg);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -10,6 +10,47 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --cq-bg: #080b0f;
+  --cq-bg-strong: #05080c;
+  --cq-surface: #101720;
+  --cq-surface-rgb: 16 23 32;
+  --cq-surface-2: #121a23;
+  --cq-panel: #0b1118;
+  --cq-panel-soft: #080d13;
+  --cq-border: rgba(255, 255, 255, 0.1);
+  --cq-text: #effff4;
+  --cq-heading: #ffffff;
+  --cq-muted: #9fb2a8;
+  --cq-muted-2: #8aa09a;
+  --cq-code-bg: #05080c;
+  --cq-code-text: #d7ffe1;
+  --cq-elevated-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  --cq-ambient:
+    radial-gradient(circle at 20% 0%, rgba(41, 255, 122, 0.12), transparent 28rem),
+    radial-gradient(circle at 80% 10%, rgba(34, 211, 238, 0.11), transparent 26rem),
+    linear-gradient(180deg, #0a0f16 0%, #080b0f 45%, #07090d 100%);
+}
+
+:root[data-theme="light"] {
+  --cq-bg: #f5f8f6;
+  --cq-bg-strong: #eef4f0;
+  --cq-surface: #ffffff;
+  --cq-surface-rgb: 255 255 255;
+  --cq-surface-2: #edf5f0;
+  --cq-panel: #ffffff;
+  --cq-panel-soft: #edf5f0;
+  --cq-border: rgba(15, 39, 28, 0.14);
+  --cq-text: #173126;
+  --cq-heading: #07130d;
+  --cq-muted: #5e746a;
+  --cq-muted-2: #6d8178;
+  --cq-code-bg: #0f1b16;
+  --cq-code-text: #dbffe8;
+  --cq-elevated-shadow: 0 18px 42px rgba(20, 61, 38, 0.12);
+  --cq-ambient:
+    radial-gradient(circle at 18% 0%, rgba(53, 255, 122, 0.2), transparent 25rem),
+    radial-gradient(circle at 82% 8%, rgba(34, 211, 238, 0.16), transparent 24rem),
+    linear-gradient(180deg, #fbfefc 0%, #f5f8f6 55%, #eef5f1 100%);
 }
 
 * {
@@ -20,10 +61,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(41, 255, 122, 0.12), transparent 28rem),
-    radial-gradient(circle at 80% 10%, rgba(34, 211, 238, 0.11), transparent 26rem),
-    linear-gradient(180deg, #0a0f16 0%, #080b0f 45%, #07090d 100%);
+  background: var(--cq-ambient);
 }
 
 a {
@@ -41,4 +79,65 @@ select {
 .cq-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #35ff7a #111820;
+}
+
+.cq-app {
+  background: var(--cq-bg);
+  color: var(--cq-text);
+}
+
+.cq-card {
+  border-color: var(--cq-border);
+  background: rgb(var(--cq-surface-rgb) / 0.92);
+  color: var(--cq-text);
+  box-shadow: var(--cq-elevated-shadow);
+}
+
+.cq-panel {
+  border-color: var(--cq-border);
+  background: rgb(var(--cq-surface-rgb) / 0.92);
+}
+
+.cq-header {
+  border-color: var(--cq-border);
+  background: color-mix(in srgb, var(--cq-panel) 84%, transparent);
+}
+
+.cq-text {
+  color: var(--cq-text);
+}
+
+.cq-heading {
+  color: var(--cq-heading);
+}
+
+.cq-muted {
+  color: var(--cq-muted);
+}
+
+.cq-muted-2 {
+  color: var(--cq-muted-2);
+}
+
+.cq-code {
+  background: var(--cq-code-bg);
+  color: var(--cq-code-text);
+}
+
+.cq-field {
+  border-color: var(--cq-border);
+  background: var(--cq-panel-soft);
+  color: var(--cq-heading);
+}
+
+.cq-soft {
+  background: color-mix(in srgb, var(--cq-heading) 6%, transparent);
+}
+
+.cq-soft:hover {
+  background: color-mix(in srgb, var(--cq-heading) 9%, transparent);
+}
+
+.cq-border {
+  border-color: var(--cq-border);
 }

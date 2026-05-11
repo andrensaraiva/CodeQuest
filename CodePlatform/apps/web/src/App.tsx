@@ -6,6 +6,7 @@ import { BadgesPage, ExercisePage, LearningMapPage, LessonPage, ModulePage, Rank
 import { ClassDetailPage, ClassesPage, ContentBuilderPage, ReportsPage, TeacherDashboard } from './features/teacher/TeacherPages'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { Card } from './components/ui/primitives'
+import { usePreferences } from './i18n/preferences'
 
 export default function App() {
   return (
@@ -48,19 +49,21 @@ export default function App() {
 }
 
 function UnityPlaceholder() {
+  const { t } = usePreferences()
   return (
     <Card>
-      <h1 className="text-3xl font-black text-white">Unity Portal</h1>
-      <p className="mt-3 text-[#9fb2a8]">MVP placeholder for future Unity script analysis and project submissions. The platform starts with pure C# game logic exercises, then expands into MonoBehaviour script checks, rubric-based project submissions, screenshots, video links, and GitHub URLs.</p>
+      <h1 className="cq-heading text-3xl font-black">{t('placeholder.unityTitle')}</h1>
+      <p className="cq-muted mt-3">{t('placeholder.unityText')}</p>
     </Card>
   )
 }
 
 function AdminPlaceholder() {
+  const { t } = usePreferences()
   return (
     <Card>
-      <h1 className="text-3xl font-black text-white">Admin Dashboard</h1>
-      <p className="mt-3 text-[#9fb2a8]">Scaffolded for future organization, teacher, platform content, runner, moderation, and usage-limit controls.</p>
+      <h1 className="cq-heading text-3xl font-black">{t('placeholder.adminTitle')}</h1>
+      <p className="cq-muted mt-3">{t('placeholder.adminText')}</p>
     </Card>
   )
 }

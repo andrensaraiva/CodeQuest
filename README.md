@@ -36,6 +36,8 @@ O MVP valida este ciclo:
 | Editor | Monaco Editor no fluxo de exercicios |
 | Correcao | Runner mockado por `ICodeRunnerService`, pronto para substituicao por Judge0, Docker workers ou cloud runners |
 | Gamificacao | XP, niveis, badges, ranking e eventos de progresso |
+| Idiomas | Interface bilingue com PT-BR como idioma inicial e EN-US como alternativa |
+| Tema | Alternancia de modo Noite/Dia persistida no navegador |
 | Professor | Dashboard, turmas, detalhe da turma, builder de exercicios e relatorios |
 | Aluno | Dashboard, mapa de aprendizagem, aulas, exercicios, badges e ranking |
 | Dados | EF Core, SQLite para desenvolvimento local e PostgreSQL via Docker |
@@ -48,8 +50,9 @@ O MVP valida este ciclo:
 - Dashboard com XP, nivel, badges e quest atual.
 - Mapa de aprendizagem com modulos e progresso.
 - Aulas e exercicios de C# orientados a logica de jogos.
-- Botao **Run** para testes visiveis.
-- Botao **Submit** para todos os testes e ganho de XP.
+- Botao **Executar** para testes visiveis.
+- Botao **Enviar** para todos os testes e ganho de XP.
+- Feedback visual de execucao/envio, erros de API e historico de tentativas.
 - Ranking positivo da turma, sem exposicao punitiva.
 
 ### Para professores
@@ -105,9 +108,26 @@ O frontend e organizado por features:
 - `features/auth`: landing, login e registro.
 - `features/student`: dashboard, mapa, modulo, aula, exercicio, badges e ranking.
 - `features/teacher`: dashboard, turmas, builder e relatorios.
+- `components/preferences`: controles de idioma e tema.
 - `components/ui`: primitives visuais alinhadas ao tema dark/neon.
+- `i18n/preferences.tsx`: provider de preferencias, dicionarios PT-BR/EN-US e traducao do conteudo demo.
 - `api/client.ts`: cliente tipado para a API.
 - `stores/authStore.ts`: sessao persistida.
+
+### Idioma E Tema
+
+A aplicacao inicia em **PT-BR** por padrao. O usuario pode trocar para **EN-US** pelos controles da interface na landing, login e area autenticada. A preferencia fica salva em `localStorage`.
+
+O tema tambem pode ser alternado entre **Noite** e **Dia**. As cores principais foram movidas para tokens CSS, entao componentes compartilhados respeitam o modo selecionado.
+
+### Corretor Do MVP
+
+O fluxo de aluno ja permite executar testes visiveis e enviar solucoes pela API:
+
+- `POST /code/run` executa os testes visiveis da quest.
+- `POST /code/submit` executa todos os testes, registra a tentativa e concede XP quando todos passam.
+
+Nesta fase, o runner ainda e mockado. Ele nao compila C# real; ele simula os testes procurando a logica esperada no metodo. A tela de exercicio informa essa limitacao e mostra estados de execucao, envio, erro e resultado.
 
 ## Como Rodar Sem Docker
 
@@ -252,7 +272,7 @@ dotnet tool run dotnet-ef migrations add NomeDaMigration --project CodePlatform/
 
 O CodeQuest Academy esta em estado de MVP funcional. A experiencia principal de aluno/professor existe, mas alguns pontos ainda sao intencionalmente limitados:
 
-- O runner nao executa codigo arbitrario; ele simula testes com regras seguras para o MVP.
+- O runner nao executa codigo arbitrario nem compila C# real; ele simula testes com regras seguras para o MVP.
 - As features de IA sao placeholders estaticos/rule-based.
 - Unity esta documentado e possui rota placeholder, mas nao executa analise real ainda.
 - Admin e um scaffold.
@@ -271,13 +291,14 @@ O CodeQuest Academy esta em estado de MVP funcional. A experiencia principal de 
 
 ## Identidade Visual
 
-A interface segue uma direcao **dark gaming/community UI**:
+A interface segue uma direcao **gaming/community UI** com modo Noite nativo e modo Dia opcional:
 
 | Token | Cor |
 | --- | --- |
-| Background | `#080b0f` |
-| Surface | `#101720` |
-| Elevated surface | `#121a23` |
+| Background noite | `#080b0f` |
+| Surface noite | `#101720` |
+| Background dia | `#f5f8f6` |
+| Surface dia | `#ffffff` |
 | Primary accent | `#35ff7a` |
 | Secondary accents | cyan e purple |
 | Warning | yellow |
