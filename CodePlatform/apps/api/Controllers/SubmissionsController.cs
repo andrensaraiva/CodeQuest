@@ -14,13 +14,16 @@ public sealed class SubmissionsController(ICodeSubmissionService submissions) : 
 {
     [Authorize(Roles = nameof(UserRole.Student))]
     [HttpGet("me")]
-    public async Task<IReadOnlyList<SubmissionDto>> Mine() => await submissions.GetMySubmissionsAsync(User.GetUserId());
+    public async Task<PagedResult<SubmissionDto>> Mine([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+        => await submissions.GetMySubmissionsAsync(User.GetUserId(), new PageQuery(page, pageSize));
 
     [Authorize(Roles = nameof(UserRole.Teacher))]
     [HttpGet("exercises/{exerciseId:guid}")]
-    public async Task<IReadOnlyList<SubmissionDto>> ExerciseSubmissions(Guid exerciseId) => await submissions.GetExerciseSubmissionsAsync(exerciseId);
+    public async Task<PagedResult<SubmissionDto>> ExerciseSubmissions(Guid exerciseId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+        => await submissions.GetExerciseSubmissionsAsync(exerciseId, User.GetUserId(), new PageQuery(page, pageSize));
 
     [Authorize(Roles = nameof(UserRole.Teacher))]
     [HttpGet("classes/{classroomId:guid}")]
-    public async Task<IReadOnlyList<SubmissionDto>> ClassSubmissions(Guid classroomId) => await submissions.GetClassSubmissionsAsync(classroomId);
+    public async Task<PagedResult<SubmissionDto>> ClassSubmissions(Guid classroomId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+        => await submissions.GetClassSubmissionsAsync(classroomId, User.GetUserId(), new PageQuery(page, pageSize));
 }

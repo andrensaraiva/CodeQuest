@@ -3,6 +3,7 @@ using CodeQuest.Api.Security;
 using CodeQuest.Api.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace CodeQuest.Api.Controllers;
 
@@ -10,6 +11,7 @@ namespace CodeQuest.Api.Controllers;
 [Route("auth")]
 public sealed class AuthController(IAuthService auth) : ControllerBase
 {
+    [EnableRateLimiting("auth")]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request)
     {
@@ -23,6 +25,7 @@ public sealed class AuthController(IAuthService auth) : ControllerBase
         }
     }
 
+    [EnableRateLimiting("auth")]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
@@ -34,6 +37,27 @@ public sealed class AuthController(IAuthService auth) : ControllerBase
         {
             return Unauthorized(new { message = ex.Message });
         }
+    }
+
+    [EnableRateLimiting("auth")]
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponse>> Refresh(RefreshTokenRequest request)
+    {
+        try
+        {
+            return Ok(await auth.RefreshAsync(request.RefreshToken));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(RefreshTokenRequest request)
+    {
+        await auth.RevokeAsync(request.RefreshToken);
+        return NoContent();
     }
 
     [Authorize]

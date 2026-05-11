@@ -36,6 +36,8 @@ public sealed class GamificationService(AppDbContext db) : IGamificationService
 
     public async Task AwardExerciseCompletionAsync(Guid studentId, Exercise exercise, int failedAttemptsBeforeSuccess)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+
         var alreadyAwarded = await db.XpEvents.AnyAsync(x =>
             x.StudentId == studentId &&
             x.SourceType == "Exercise" &&
@@ -56,6 +58,7 @@ public sealed class GamificationService(AppDbContext db) : IGamificationService
 
         await UnlockBadgesAsync(studentId, exercise, failedAttemptsBeforeSuccess);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
     }
 
     public async Task<IReadOnlyList<RankingEntryDto>> GetClassRankingAsync(Guid classroomId)

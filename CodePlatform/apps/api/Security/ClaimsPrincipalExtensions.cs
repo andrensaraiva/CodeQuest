@@ -8,7 +8,11 @@ public static class ClaimsPrincipalExtensions
     public static Guid GetUserId(this ClaimsPrincipal principal)
     {
         var value = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(value, out var id) ? id : Guid.Empty;
+        if (!Guid.TryParse(value, out var id) || id == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Missing or invalid user identifier in token.");
+        }
+        return id;
     }
 
     public static UserRole GetRole(this ClaimsPrincipal principal)

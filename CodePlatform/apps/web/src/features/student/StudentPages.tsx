@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import Editor from '@monaco-editor/react'
+import { lazy, Suspense, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Lightbulb, Play, RotateCcw, Send, Swords } from 'lucide-react'
@@ -8,6 +7,8 @@ import { BadgeCard, ModuleNode, RankingList, XPBar } from '../../components/gami
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, ProgressBar } from '../../components/ui/primitives'
 import { statusLabel, usePreferences } from '../../i18n/preferences'
 import type { Lesson } from '../../types'
+
+const Editor = lazy(() => import('@monaco-editor/react'))
 
 export function StudentDashboard() {
   const { t, content } = usePreferences()
@@ -130,7 +131,7 @@ export function ExercisePage() {
   const { exerciseId = '' } = useParams()
   const queryClient = useQueryClient()
   const exercise = useQuery({ queryKey: ['exercise', exerciseId], queryFn: () => api.exercise(exerciseId), enabled: !!exerciseId })
-  const submissions = useQuery({ queryKey: ['submissions'], queryFn: api.mySubmissions })
+  const submissions = useQuery({ queryKey: ['submissions'], queryFn: () => api.mySubmissions() })
   const currentExercise = exercise.data
   const [codeDraft, setCodeDraft] = useState<{ exerciseId: string; value: string } | null>(null)
   const code = codeDraft?.exerciseId === currentExercise?.id ? codeDraft.value : currentExercise?.starterCode ?? ''
@@ -153,7 +154,7 @@ export function ExercisePage() {
   const latestResult = submit.data
   const runResult = run.data
   const skills = safeArray(currentExercise.skillsJson)
-  const attempts = submissions.data?.filter((item) => item.exerciseId === currentExercise.id) ?? []
+  const attempts = submissions.data?.items.filter((item) => item.exerciseId === currentExercise.id) ?? []
 
   return (
     <div className="space-y-4">
@@ -193,7 +194,9 @@ export function ExercisePage() {
               <Button variant="ghost" onClick={() => setCodeDraft({ exerciseId: currentExercise.id, value: currentExercise.starterCode })}><RotateCcw size={16} /></Button>
             </div>
           </div>
-          <Editor height="520px" defaultLanguage="csharp" theme={theme === 'dark' ? 'vs-dark' : 'light'} value={code} onChange={(value) => setCodeDraft({ exerciseId: currentExercise.id, value: value ?? '' })} options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 } }} />
+          <Suspense fallback={<div className="cq-muted flex h-[520px] items-center justify-center text-sm">{t('student.questEditor')}…</div>}>
+            <Editor height="520px" defaultLanguage="csharp" theme={theme === 'dark' ? 'vs-dark' : 'light'} value={code} onChange={(value) => setCodeDraft({ exerciseId: currentExercise.id, value: value ?? '' })} options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 } }} />
+          </Suspense>
         </Card>
       </div>
 

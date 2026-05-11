@@ -14,7 +14,16 @@ export interface User {
 
 export interface AuthResponse {
   token: string
+  refreshToken: string
   user: User
+}
+
+export interface PagedResult<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
 }
 
 export interface Classroom {

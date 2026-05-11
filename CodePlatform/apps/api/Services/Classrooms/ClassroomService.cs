@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using CodeQuest.Api.Data;
 using CodeQuest.Api.DTOs;
 using CodeQuest.Api.Entities;
@@ -111,13 +112,15 @@ public sealed class ClassroomService(AppDbContext db) : IClassroomService
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         for (var attempt = 0; attempt < 10; attempt++)
         {
-            var code = new string(Enumerable.Range(0, 8).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
+            var buffer = new byte[8];
+            RandomNumberGenerator.Fill(buffer);
+            var code = new string(buffer.Select(b => chars[b % chars.Length]).ToArray());
             if (!await db.Classrooms.AnyAsync(x => x.InviteCode == code))
             {
                 return code;
             }
         }
 
-        return Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        throw new InvalidOperationException("Could not generate a unique invite code. Try again.");
     }
 }

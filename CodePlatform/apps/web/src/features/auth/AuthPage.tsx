@@ -28,7 +28,7 @@ export function AuthPage() {
     setError('')
     try {
       const session = mode === 'login' ? await api.login(email, password) : await api.register(name, email, password, role)
-      setSession(session.token, session.user)
+      setSession(session.token, session.refreshToken, session.user)
       navigate(session.user.role === 'Teacher' ? '/teacher' : '/student')
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common.error'))

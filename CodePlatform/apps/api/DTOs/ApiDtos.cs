@@ -2,9 +2,22 @@ using CodeQuest.Api.Enums;
 
 namespace CodeQuest.Api.DTOs;
 
-public sealed record AuthResponse(string Token, UserDto User);
+public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount)
+{
+    public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling((double)TotalCount / PageSize);
+}
+
+public sealed record PageQuery(int Page = 1, int PageSize = 25)
+{
+    public int SafePage => Page < 1 ? 1 : Page;
+    public int SafePageSize => PageSize is < 1 or > 200 ? 25 : PageSize;
+    public int Skip => (SafePage - 1) * SafePageSize;
+}
+
+public sealed record AuthResponse(string Token, string RefreshToken, UserDto User);
 public sealed record RegisterRequest(string Name, string Email, string Password, UserRole Role);
 public sealed record LoginRequest(string Email, string Password);
+public sealed record RefreshTokenRequest(string RefreshToken);
 public sealed record UserDto(Guid Id, string Name, string Email, UserRole Role, string? AvatarUrl);
 
 public sealed record ClassroomDto(Guid Id, string Name, string Description, string InviteCode, Guid TeacherId, int StudentCount);

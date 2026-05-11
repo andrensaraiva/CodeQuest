@@ -11,9 +11,9 @@ public interface ICodeSubmissionService
 {
     Task<CodeRunResponse> RunAsync(Guid studentId, CodeRunRequest request);
     Task<SubmissionDto> SubmitAsync(Guid studentId, SubmitCodeRequest request);
-    Task<IReadOnlyList<SubmissionDto>> GetMySubmissionsAsync(Guid studentId);
-    Task<IReadOnlyList<SubmissionDto>> GetExerciseSubmissionsAsync(Guid exerciseId);
-    Task<IReadOnlyList<SubmissionDto>> GetClassSubmissionsAsync(Guid classroomId);
+    Task<PagedResult<SubmissionDto>> GetMySubmissionsAsync(Guid studentId, PageQuery page);
+    Task<PagedResult<SubmissionDto>> GetExerciseSubmissionsAsync(Guid exerciseId, Guid teacherId, PageQuery page);
+    Task<PagedResult<SubmissionDto>> GetClassSubmissionsAsync(Guid classroomId, Guid teacherId, PageQuery page);
 }
 
 public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService runner, IGamificationService gamification) : ICodeSubmissionService
@@ -22,6 +22,8 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
     {
         var exercise = await db.Exercises.Include(x => x.Tests).FirstOrDefaultAsync(x => x.Id == request.ExerciseId)
             ?? throw new InvalidOperationException("Exercise not found.");
+
+        await EnsureStudentCanAccessAsync(studentId, exercise);
 
         var result = await runner.RunCodeAsync(new TestRunRequest(request.Language, request.Code, exercise, exercise.Tests.Where(x => !x.IsHidden).ToList()));
         db.CodeRuns.Add(new CodeRun
@@ -43,6 +45,8 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
     {
         var exercise = await db.Exercises.Include(x => x.Tests).FirstOrDefaultAsync(x => x.Id == request.ExerciseId)
             ?? throw new InvalidOperationException("Exercise not found.");
+
+        await EnsureStudentCanAccessAsync(studentId, exercise);
 
         var previousAttempts = await db.Submissions.CountAsync(x => x.StudentId == studentId && x.ExerciseId == exercise.Id);
         var failedBefore = await db.Submissions.CountAsync(x => x.StudentId == studentId && x.ExerciseId == exercise.Id && x.Status == SubmissionStatus.Failed);
@@ -84,23 +88,61 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
         return ToDto(submission);
     }
 
-    public async Task<IReadOnlyList<SubmissionDto>> GetMySubmissionsAsync(Guid studentId)
+    public async Task<PagedResult<SubmissionDto>> GetMySubmissionsAsync(Guid studentId, PageQuery page)
     {
-        var submissions = await db.Submissions.Include(x => x.TestResults).Where(x => x.StudentId == studentId).OrderByDescending(x => x.CreatedAt).ToListAsync();
-        return submissions.Select(ToDto).ToList();
+        var query = db.Submissions.Where(x => x.StudentId == studentId);
+        return await PaginateAsync(query, page);
     }
 
-    public async Task<IReadOnlyList<SubmissionDto>> GetExerciseSubmissionsAsync(Guid exerciseId)
+    public async Task<PagedResult<SubmissionDto>> GetExerciseSubmissionsAsync(Guid exerciseId, Guid teacherId, PageQuery page)
     {
-        var submissions = await db.Submissions.Include(x => x.TestResults).Where(x => x.ExerciseId == exerciseId).OrderByDescending(x => x.CreatedAt).ToListAsync();
-        return submissions.Select(ToDto).ToList();
+        var ownsExercise = await db.Exercises.AnyAsync(x => x.Id == exerciseId && x.CreatedByTeacherId == teacherId);
+        if (!ownsExercise)
+        {
+            throw new UnauthorizedAccessException("You cannot view submissions for this exercise.");
+        }
+
+        var query = db.Submissions.Where(x => x.ExerciseId == exerciseId);
+        return await PaginateAsync(query, page);
     }
 
-    public async Task<IReadOnlyList<SubmissionDto>> GetClassSubmissionsAsync(Guid classroomId)
+    public async Task<PagedResult<SubmissionDto>> GetClassSubmissionsAsync(Guid classroomId, Guid teacherId, PageQuery page)
     {
+        var ownsClassroom = await db.Classrooms.AnyAsync(x => x.Id == classroomId && x.TeacherId == teacherId);
+        if (!ownsClassroom)
+        {
+            throw new UnauthorizedAccessException("You cannot view submissions for this classroom.");
+        }
+
         var studentIds = await db.ClassStudents.Where(x => x.ClassroomId == classroomId).Select(x => x.StudentId).ToListAsync();
-        var submissions = await db.Submissions.Include(x => x.TestResults).Where(x => studentIds.Contains(x.StudentId)).OrderByDescending(x => x.CreatedAt).ToListAsync();
-        return submissions.Select(ToDto).ToList();
+        var query = db.Submissions.Where(x => studentIds.Contains(x.StudentId));
+        return await PaginateAsync(query, page);
+    }
+
+    private async Task<PagedResult<SubmissionDto>> PaginateAsync(IQueryable<Submission> query, PageQuery page)
+    {
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .Skip(page.Skip)
+            .Take(page.SafePageSize)
+            .Include(x => x.TestResults)
+            .ToListAsync();
+        return new PagedResult<SubmissionDto>(items.Select(ToDto).ToList(), page.SafePage, page.SafePageSize, total);
+    }
+
+    private async Task EnsureStudentCanAccessAsync(Guid studentId, Entities.Exercise exercise)
+    {
+        if (!exercise.IsPublished)
+        {
+            throw new UnauthorizedAccessException("This exercise is not available to students yet.");
+        }
+
+        var enrolled = await db.ClassStudents.AnyAsync(x => x.StudentId == studentId);
+        if (!enrolled)
+        {
+            throw new UnauthorizedAccessException("Join a classroom before submitting code.");
+        }
     }
 
     private static SubmissionDto ToDto(Submission submission)

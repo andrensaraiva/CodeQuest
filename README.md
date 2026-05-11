@@ -12,35 +12,39 @@
   <img alt="C# first" src="https://img.shields.io/badge/C%23_first-35ff7a?style=for-the-badge&labelColor=080b0f&color=35ff7a" />
   <img alt="Unity-ready" src="https://img.shields.io/badge/Unity--ready-22d3ee?style=for-the-badge&labelColor=080b0f&color=22d3ee" />
   <img alt="Teacher centered" src="https://img.shields.io/badge/Teacher_centered-b968ff?style=for-the-badge&labelColor=080b0f&color=b968ff" />
-  <img alt="MVP" src="https://img.shields.io/badge/status-MVP-ffd166?style=for-the-badge&labelColor=080b0f&color=ffd166" />
+  <img alt="status" src="https://img.shields.io/badge/status-beta-ffd166?style=for-the-badge&labelColor=080b0f&color=ffd166" />
 </p>
 
 ## Visao Geral
 
-O **CodeQuest Academy** e um MVP de uma plataforma de aprendizagem de programacao com visual dark gaming e foco escolar. A proposta e transformar exercicios de codigo em quests: o aluno aprende C#, executa testes visiveis, submete solucoes, ganha XP e desbloqueia badges; o professor acompanha progresso, tentativas, ranking da turma e pontos de dificuldade.
+O **CodeQuest Academy** e uma plataforma de aprendizagem de programacao com visual dark gaming e foco escolar. A proposta e transformar exercicios de codigo em quests: o aluno aprende C#, executa testes visiveis, submete solucoes, ganha XP e desbloqueia badges; o professor acompanha progresso, tentativas, ranking da turma e pontos de dificuldade.
 
-O MVP valida este ciclo:
+O ciclo principal:
 
 1. O professor cria ou utiliza uma quest de C#.
 2. O aluno abre a quest no editor Monaco.
 3. O aluno executa testes visiveis ou envia a solucao completa.
-4. A API registra execucoes, submissoes, resultados, XP, badges e progresso.
-5. O professor enxerga evolucao, exercicios dificeis e alunos que precisam de apoio.
+4. A API compila e executa o codigo (Roslyn) ou cai no runner mock determinístico.
+5. A API registra execucoes, submissoes, resultados, XP, badges e progresso.
+6. O professor enxerga evolucao, exercicios dificeis e alunos que precisam de apoio.
 
 ## O Que Ja Existe
 
 | Area | Entrega |
 | --- | --- |
-| Autenticacao | Cadastro, login, sessao persistida e JWT para alunos/professores |
+| Autenticacao | Cadastro, login, JWT com refresh token rotacionado, BCrypt, rate limiting nos endpoints `/auth/*` |
 | Aprendizagem | Trilhas, modulos, aulas, exercicios, testes visiveis e ocultos |
-| Editor | Monaco Editor no fluxo de exercicios |
-| Correcao | Runner mockado por `ICodeRunnerService`, pronto para substituicao por Judge0, Docker workers ou cloud runners |
-| Gamificacao | XP, niveis, badges, ranking e eventos de progresso |
+| Editor | Monaco Editor com lazy load |
+| Correcao | `RoslynCodeRunnerService` (compilação real, timeout, allowlist de APIs) ou `MockCodeRunnerService`, selecionável por `CodeRunner:Provider` |
+| Gamificacao | XP, niveis, badges, ranking, awards protegidos por transação |
 | Idiomas | Interface bilingue com PT-BR como idioma inicial e EN-US como alternativa |
 | Tema | Alternancia de modo Noite/Dia persistida no navegador |
 | Professor | Dashboard, turmas, detalhe da turma, builder de exercicios e relatorios |
 | Aluno | Dashboard, mapa de aprendizagem, aulas, exercicios, badges e ranking |
-| Dados | EF Core, SQLite para desenvolvimento local e PostgreSQL via Docker |
+| Dados | EF Core, SQLite para desenvolvimento local e PostgreSQL via Docker, índices em colunas quentes |
+| Qualidade | FluentValidation em todos os DTOs, Serilog estruturado, `ProblemDetails` em erros, `ErrorBoundary` no React |
+| Testes | xUnit + EF InMemory no backend, Vitest + Testing Library no frontend |
+| CI | GitHub Actions roda build, lint e testes em cada push/PR |
 | Documentacao | Guias de arquitetura, API, banco, frontend, backend, runner, Unity e continuidade |
 
 ## Experiencia Do Produto
@@ -52,26 +56,29 @@ O MVP valida este ciclo:
 - Aulas e exercicios de C# orientados a logica de jogos.
 - Botao **Executar** para testes visiveis.
 - Botao **Enviar** para todos os testes e ganho de XP.
-- Feedback visual de execucao/envio, erros de API e historico de tentativas.
+- Feedback visual de execucao/envio, erros de API e historico de tentativas (paginado).
 - Ranking positivo da turma, sem exposicao punitiva.
 
 ### Para professores
 
 - Dashboard com turmas, alunos, submissoes e exercicios dificeis.
-- Criacao e visualizacao de turmas com codigo de convite.
+- Criacao e visualizacao de turmas com codigo de convite gerado por `RandomNumberGenerator`.
 - Builder de exercicios C#.
 - Relatorios de progresso e alunos que precisam de suporte.
+- Acesso a submissoes restrito ao professor dono do exercicio/turma.
 - Base pronta para evoluir para editor completo de testes e atribuicao de trilhas por turma.
 
 ## Stack
 
 | Camada | Tecnologias |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query, Zustand, Monaco Editor, Lucide React |
-| Backend | ASP.NET Core Web API, .NET 9, EF Core, JWT, BCrypt |
-| Banco | SQLite no desenvolvimento rapido, PostgreSQL para ambiente mais proximo de producao |
-| Runner | `ICodeRunnerService` com implementacao mockada no MVP |
+| Frontend | React 19, TypeScript, Vite 6, Tailwind CSS v4, React Router 7, TanStack Query, Zustand, Monaco Editor, lucide-react |
+| Backend | ASP.NET Core 9, EF Core, JWT + refresh tokens, BCrypt, FluentValidation, Serilog, Rate Limiting |
+| Banco | SQLite no desenvolvimento, PostgreSQL para ambiente mais proximo de producao |
+| Runner | `MockCodeRunnerService` (default) ou `RoslynCodeRunnerService` (real, opt-in) |
+| Testes | xUnit, FluentAssertions, EF InMemory, Vitest, Testing Library, jsdom |
 | Infra local | Docker Compose para PostgreSQL |
+| CI | GitHub Actions |
 
 ## Arquitetura
 
@@ -79,10 +86,12 @@ O MVP valida este ciclo:
 CodeQuest
 ├─ CodeQuest.sln
 ├─ README.md
+├─ .github/workflows/ci.yml
 └─ CodePlatform
    ├─ apps
    │  ├─ api        # ASP.NET Core Web API
-   │  └─ web        # React/Vite frontend
+   │  ├─ web        # React/Vite frontend
+   │  └─ tests      # xUnit (CodeQuest.Api.Tests)
    ├─ docs          # Documentacao do produto e da implementacao
    ├─ packages      # Espaco reservado para compartilhamentos futuros
    └─ docker-compose.yml
@@ -92,14 +101,16 @@ CodeQuest
 
 Os controllers funcionam como adaptadores HTTP finos. As regras ficam nos services:
 
-- `AuthService`: cadastro, login, JWT e BCrypt.
-- `ClassroomService`: turmas, convites, alunos e progresso.
+- `AuthService`: cadastro, login, JWT, refresh tokens (SHA256 hash, rotacao single-use, 30 dias).
+- `ClassroomService`: turmas, convites criptograficamente seguros, alunos e progresso.
 - `LearningService`: trilhas, modulos, aulas e exercicios.
-- `CodeSubmissionService`: execucao, submissao e armazenamento de tentativas.
-- `MockCodeRunnerService`: simulacao segura do runner no MVP.
-- `GamificationService`: XP, niveis, badges e ranking.
+- `CodeSubmissionService`: execucao, submissao, paginacao, checagem de matricula e propriedade.
+- `MockCodeRunnerService` / `RoslynCodeRunnerService`: runners selecionaveis.
+- `GamificationService`: XP, niveis, badges e ranking, com transacao para evitar duplicacao.
 - `ReportService`: progresso de turma e dificuldade.
 - `AssistantService`: respostas placeholder para IA.
+
+Cross-cutting: `FluentValidation` em todos os DTOs, `UseExceptionHandler` mapeando excecoes para `ProblemDetails`, `Serilog` para logs estruturados, rate limit `auth` (10 req/min/IP), CORS configuravel via `Cors:AllowedOrigins`.
 
 ### Frontend
 
@@ -108,30 +119,36 @@ O frontend e organizado por features:
 - `features/auth`: landing, login e registro.
 - `features/student`: dashboard, mapa, modulo, aula, exercicio, badges e ranking.
 - `features/teacher`: dashboard, turmas, builder e relatorios.
+- `components/layout`: `AppShell` e `ErrorBoundary` no topo da arvore.
 - `components/preferences`: controles de idioma e tema.
 - `components/ui`: primitives visuais alinhadas ao tema dark/neon.
 - `i18n/preferences.tsx`: provider de preferencias, dicionarios PT-BR/EN-US e traducao do conteudo demo.
-- `api/client.ts`: cliente tipado para a API.
-- `stores/authStore.ts`: sessao persistida.
+- `api/client.ts`: cliente tipado com retry automatico em 401 (refresh) e queda para `/login`.
+- `stores/authStore.ts`: sessao persistida com access token + refresh token + user.
+
+O Monaco e carregado via `React.lazy` + `Suspense`, fora do bundle inicial.
 
 ### Idioma E Tema
 
-A aplicacao inicia em **PT-BR** por padrao. O usuario pode trocar para **EN-US** pelos controles da interface na landing, login e area autenticada. A preferencia fica salva em `localStorage`.
+A aplicacao inicia em **PT-BR** e pode trocar para **EN-US** na landing, login e area autenticada. A preferencia fica em `localStorage`. O tema alterna entre **Noite** e **Dia** via tokens CSS.
 
-O tema tambem pode ser alternado entre **Noite** e **Dia**. As cores principais foram movidas para tokens CSS, entao componentes compartilhados respeitam o modo selecionado.
-
-### Corretor Do MVP
-
-O fluxo de aluno ja permite executar testes visiveis e enviar solucoes pela API:
+### Corretor Real
 
 - `POST /code/run` executa os testes visiveis da quest.
-- `POST /code/submit` executa todos os testes, registra a tentativa e concede XP quando todos passam.
+- `POST /code/submit` executa todos os testes, registra a tentativa e concede XP.
 
-Nesta fase, o runner ainda e mockado. Ele nao compila C# real; ele simula os testes procurando a logica esperada no metodo. A tela de exercicio informa essa limitacao e mostra estados de execucao, envio, erro e resultado.
+Por padrao o backend usa o runner mock. Para ativar o runner real:
+
+```powershell
+cd CodePlatform/apps/api
+dotnet user-secrets set "CodeRunner:Provider" "Roslyn"
+```
+
+O runner Roslyn aplica timeout (`CodeRunner:TimeoutSeconds`, default 5s), restringe imports a `System`, `System.Linq`, `System.Collections.Generic`, `System.Text` e `System.Math`, e bloqueia tokens como `System.IO`, `System.Net`, `Process`, `Reflection`, `Runtime.InteropServices`, `Thread`, `AppDomain`, `File.`, `Directory.`, `DllImport` e `unsafe`. Ele **nao** e um sandbox completo — para codigo de fora da sala de aula use Judge0 ou Docker workers.
 
 ## Como Rodar Sem Docker
 
-O ambiente de desenvolvimento usa SQLite por padrao, entao nao precisa subir PostgreSQL para testar.
+O ambiente de desenvolvimento usa SQLite por padrao.
 
 ### 1. API
 
@@ -141,17 +158,12 @@ dotnet restore
 dotnet run --launch-profile http
 ```
 
-A API cria `CodePlatform/apps/api/codequest-dev.db` automaticamente e popula dados de demonstracao.
+A API cria `CodePlatform/apps/api/codequest-dev.db` automaticamente, aplica `EnsureCreated` e popula dados de demonstracao.
 
-Swagger:
-
-```text
-http://localhost:5000/swagger
-```
+Swagger: `http://localhost:5000/swagger`
+Health: `http://localhost:5000/health`
 
 ### 2. Web
-
-Em outro terminal:
 
 ```powershell
 cd CodePlatform/apps/web
@@ -159,29 +171,19 @@ npm install
 npm run dev
 ```
 
-Aplicacao:
-
-```text
-http://localhost:5173
-```
+Aplicacao: `http://localhost:5173`
 
 ## Como Rodar Com Docker E PostgreSQL
 
 ```powershell
 cd CodePlatform
 docker compose up -d
-```
 
-Depois:
-
-```powershell
 cd apps/api
 dotnet user-secrets set "Database:Provider" "Postgres"
 dotnet restore
 dotnet run --launch-profile http
 ```
-
-Em outro terminal:
 
 ```powershell
 cd CodePlatform/apps/web
@@ -189,7 +191,18 @@ npm install
 npm run dev
 ```
 
-Enquanto `Database:AutoMigrate` estiver `true`, a API aplica migracoes e popula os dados iniciais ao iniciar.
+> A tabela `RefreshTokens` foi adicionada apos a migration inicial. Antes do primeiro deploy em Postgres, gere uma nova migration (veja `docs/DATABASE.md`).
+
+## Testes
+
+```powershell
+# Backend
+dotnet test CodeQuest.sln
+
+# Frontend
+cd CodePlatform/apps/web
+npm test
+```
 
 ## Contas Demo
 
@@ -202,11 +215,7 @@ Enquanto `Database:AutoMigrate` estiver `true`, a API aplica migracoes e popula 
 | Aluno 4 | `student4@codequest.dev` | `password123` |
 | Aluno 5 | `student5@codequest.dev` | `password123` |
 
-Codigo de convite da turma demo:
-
-```text
-JOGOS2026
-```
+Codigo de convite da turma demo: `JOGOS2026`
 
 ## Rotas Principais
 
@@ -219,48 +228,48 @@ JOGOS2026
 
 ## API
 
-Base local:
-
-```text
-http://localhost:5000
-```
-
-Grupos de endpoints:
+Base local: `http://localhost:5000`. Erros seguem `application/problem+json`.
 
 | Grupo | Exemplos |
 | --- | --- |
-| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
 | Classes | `GET /classes`, `POST /classes`, `POST /classes/join`, `GET /classes/{id}/report` |
 | Learning | `GET /tracks`, `GET /modules/{id}`, `POST /exercises`, `POST /exercises/{id}/publish` |
 | Code | `POST /code/run`, `POST /code/submit` |
-| Submissions | `GET /submissions/me`, `GET /submissions/exercises/{exerciseId}` |
+| Submissions | `GET /submissions/me?page=1&pageSize=25`, `GET /submissions/exercises/{exerciseId}`, `GET /submissions/classes/{classroomId}` |
 | Gamification | `GET /me/xp`, `GET /me/badges` |
-| AI | `POST /ai/hint`, `POST /ai/generate-exercise`, `POST /ai/generate-tests` |
+| AI (mock) | `POST /ai/hint`, `POST /ai/generate-exercise`, `POST /ai/generate-tests` |
+| Ops | `GET /health` |
 
 ## Comandos Uteis
 
 ```powershell
-dotnet build CodePlatform/apps/api/CodeQuest.Api.csproj
+dotnet build CodeQuest.sln
+dotnet test CodeQuest.sln
 npm --prefix CodePlatform/apps/web run build
 npm --prefix CodePlatform/apps/web run lint
+npm --prefix CodePlatform/apps/web test
 ```
 
 Criar uma migration PostgreSQL:
 
 ```powershell
-dotnet tool run dotnet-ef migrations add NomeDaMigration --project CodePlatform/apps/api/CodeQuest.Api.csproj --startup-project CodePlatform/apps/api/CodeQuest.Api.csproj -o Migrations
+dotnet tool run dotnet-ef migrations add NomeDaMigration `
+  --project CodePlatform/apps/api/CodeQuest.Api.csproj `
+  --startup-project CodePlatform/apps/api/CodeQuest.Api.csproj `
+  -o Migrations
 ```
 
 ## Documentacao
 
 | Documento | Conteudo |
 | --- | --- |
-| `CodePlatform/docs/PROJECT_OVERVIEW.md` | Visao do produto e escopo do MVP |
+| `CodePlatform/docs/PROJECT_OVERVIEW.md` | Visao do produto e escopo |
 | `CodePlatform/docs/ARCHITECTURE.md` | Estrutura do monorepo, backend e frontend |
 | `CodePlatform/docs/SETUP.md` | Setup local com SQLite ou PostgreSQL |
 | `CodePlatform/docs/API.md` | Endpoints disponiveis |
 | `CodePlatform/docs/DATABASE.md` | Modelo de dados e estrategia de migracao |
-| `CodePlatform/docs/CODE_RUNNER.md` | Runner mockado e caminhos para Judge0/Docker |
+| `CodePlatform/docs/CODE_RUNNER.md` | Runner Roslyn/Mock e caminhos para Judge0/Docker |
 | `CodePlatform/docs/DESIGN_SYSTEM.md` | Paleta, componentes e direcao visual |
 | `CodePlatform/docs/STUDENT_GUIDE.md` | Fluxo do aluno |
 | `CodePlatform/docs/TEACHER_GUIDE.md` | Fluxo do professor |
@@ -270,24 +279,17 @@ dotnet tool run dotnet-ef migrations add NomeDaMigration --project CodePlatform/
 
 ## Estado Atual E Limitacoes
 
-O CodeQuest Academy esta em estado de MVP funcional. A experiencia principal de aluno/professor existe, mas alguns pontos ainda sao intencionalmente limitados:
-
-- O runner nao executa codigo arbitrario nem compila C# real; ele simula testes com regras seguras para o MVP.
+- O runner Mock e o default; o runner Roslyn e opt-in via `CodeRunner:Provider=Roslyn`. Roslyn nao e sandbox completo.
 - As features de IA sao placeholders estaticos/rule-based.
 - Unity esta documentado e possui rota placeholder, mas nao executa analise real ainda.
 - Admin e um scaffold.
 - A atribuicao de trilhas especificas por turma ainda deve virar tabela propria.
 - O builder de professor cria exercicios simples; o editor completo de testes visiveis/ocultos e a proxima evolucao natural.
+- A tabela `RefreshTokens` precisa de uma migration nova antes de subir em Postgres.
 
 ## Roadmap Curto
 
-- Editor completo de testes para professor.
-- Relacao turma-trilha.
-- Permissoes mais granulares para submissoes de exercicios.
-- XP por conclusao de aula.
-- Streaks e badges persistentes adicionais.
-- Runner real com isolamento de CPU, memoria, rede e filesystem.
-- Testes de integracao e hardening de secrets.
+Veja [`CodePlatform/docs/ROADMAP.md`](CodePlatform/docs/ROADMAP.md) para a lista completa. Itens recem-concluidos: runner Roslyn, refresh tokens, FluentValidation, paginacao, rate limiting, Serilog, ErrorBoundary, lazy Monaco, suite de testes, pipeline CI.
 
 ## Identidade Visual
 

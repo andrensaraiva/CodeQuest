@@ -20,6 +20,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<StudentBadge> StudentBadges => Set<StudentBadge>();
     public DbSet<CodeRun> CodeRuns => Set<CodeRun>();
     public DbSet<AiInteraction> AiInteractions => Set<AiInteraction>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -28,6 +29,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         builder.Entity<ClassStudent>().HasIndex(x => new { x.ClassroomId, x.StudentId }).IsUnique();
         builder.Entity<StudentBadge>().HasIndex(x => new { x.StudentId, x.BadgeId }).IsUnique();
         builder.Entity<XpEvent>().HasIndex(x => new { x.StudentId, x.SourceType, x.SourceId, x.Reason });
+        builder.Entity<RefreshToken>().HasIndex(x => x.TokenHash).IsUnique();
+        builder.Entity<RefreshToken>().HasIndex(x => x.UserId);
+        builder.Entity<Submission>().HasIndex(x => new { x.StudentId, x.ExerciseId });
+        builder.Entity<Submission>().HasIndex(x => x.CreatedAt);
 
         builder.Entity<Classroom>()
             .HasOne(x => x.Teacher)

@@ -1,11 +1,14 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using CodeQuest.Api.Data;
 using CodeQuest.Api.DTOs;
 using CodeQuest.Api.Entities;
 using CodeQuest.Api.Enums;
+using CodeQuest.Api.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace CodeQuest.Api.Services.Auth;
@@ -14,16 +17,26 @@ public interface IAuthService
 {
     Task<AuthResponse> RegisterAsync(RegisterRequest request);
     Task<AuthResponse> LoginAsync(LoginRequest request);
+    Task<AuthResponse> RefreshAsync(string refreshToken);
+    Task RevokeAsync(string refreshToken);
     Task<UserDto?> GetUserAsync(Guid userId);
 }
 
-public sealed class AuthService(AppDbContext db, IConfiguration config) : IAuthService
+public sealed class AuthService(AppDbContext db, IOptions<JwtOptions> jwt) : IAuthService
 {
+    private const int MinPasswordLength = 8;
+    private static readonly TimeSpan RefreshLifetime = TimeSpan.FromDays(30);
+
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
         if (request.Role == UserRole.Admin)
         {
             throw new InvalidOperationException("Admin self-registration is disabled in the MVP.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < MinPasswordLength)
+        {
+            throw new InvalidOperationException($"Password must be at least {MinPasswordLength} characters long.");
         }
 
         var email = request.Email.Trim().ToLowerInvariant();
@@ -42,7 +55,8 @@ public sealed class AuthService(AppDbContext db, IConfiguration config) : IAuthS
 
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        return new AuthResponse(CreateToken(user), ToDto(user));
+        var refresh = await IssueRefreshTokenAsync(user.Id);
+        return new AuthResponse(CreateToken(user), refresh, ToDto(user));
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
@@ -54,7 +68,46 @@ public sealed class AuthService(AppDbContext db, IConfiguration config) : IAuthS
             throw new UnauthorizedAccessException("Invalid email or password.");
         }
 
-        return new AuthResponse(CreateToken(user), ToDto(user));
+        var refresh = await IssueRefreshTokenAsync(user.Id);
+        return new AuthResponse(CreateToken(user), refresh, ToDto(user));
+    }
+
+    public async Task<AuthResponse> RefreshAsync(string refreshToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new UnauthorizedAccessException("Missing refresh token.");
+        }
+
+        var hash = HashToken(refreshToken);
+        var stored = await db.RefreshTokens.Include(x => x.User).FirstOrDefaultAsync(x => x.TokenHash == hash);
+        if (stored is null || stored.RevokedAt is not null || stored.ExpiresAt < DateTime.UtcNow || stored.User is null)
+        {
+            throw new UnauthorizedAccessException("Refresh token is invalid or expired.");
+        }
+
+        stored.RevokedAt = DateTime.UtcNow;
+        var newRefresh = await IssueRefreshTokenAsync(stored.UserId);
+        await db.SaveChangesAsync();
+        return new AuthResponse(CreateToken(stored.User), newRefresh, ToDto(stored.User));
+    }
+
+    public async Task RevokeAsync(string refreshToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return;
+        }
+
+        var hash = HashToken(refreshToken);
+        var stored = await db.RefreshTokens.FirstOrDefaultAsync(x => x.TokenHash == hash);
+        if (stored is null || stored.RevokedAt is not null)
+        {
+            return;
+        }
+
+        stored.RevokedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
     }
 
     public async Task<UserDto?> GetUserAsync(Guid userId)
@@ -63,11 +116,30 @@ public sealed class AuthService(AppDbContext db, IConfiguration config) : IAuthS
         return user is null ? null : ToDto(user);
     }
 
+    private async Task<string> IssueRefreshTokenAsync(Guid userId)
+    {
+        var bytes = RandomNumberGenerator.GetBytes(48);
+        var token = Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = userId,
+            TokenHash = HashToken(token),
+            ExpiresAt = DateTime.UtcNow.Add(RefreshLifetime)
+        });
+        await db.SaveChangesAsync();
+        return token;
+    }
+
+    private static string HashToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return Convert.ToHexString(bytes);
+    }
+
     private string CreateToken(User user)
     {
-        var key = config["Jwt:Key"] ?? "dev-only-change-this-codequest-secret-key";
-        var issuer = config["Jwt:Issuer"] ?? "CodeQuestAcademy";
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var options = jwt.Value;
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
         var claims = new[]
         {
@@ -78,10 +150,10 @@ public sealed class AuthService(AppDbContext db, IConfiguration config) : IAuthS
         };
 
         var token = new JwtSecurityToken(
-            issuer,
-            issuer,
+            options.Issuer,
+            options.Issuer,
             claims,
-            expires: DateTime.UtcNow.AddHours(12),
+            expires: DateTime.UtcNow.AddHours(options.ExpirationHours),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
