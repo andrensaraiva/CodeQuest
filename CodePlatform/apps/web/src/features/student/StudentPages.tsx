@@ -134,7 +134,9 @@ export function ExercisePage() {
   const submissions = useQuery({ queryKey: ['submissions'], queryFn: () => api.mySubmissions() })
   const currentExercise = exercise.data
   const [codeDraft, setCodeDraft] = useState<{ exerciseId: string; value: string } | null>(null)
-  const code = codeDraft?.exerciseId === currentExercise?.id ? codeDraft.value : currentExercise?.starterCode ?? ''
+  const code = codeDraft && currentExercise && codeDraft.exerciseId === currentExercise.id
+    ? codeDraft.value
+    : currentExercise?.starterCode ?? ''
   const [hint, setHint] = useState('')
   const [lastAction, setLastAction] = useState<'run' | 'submit' | null>(null)
   const run = useMutation({ mutationFn: () => api.runCode(exerciseId, exercise.data!.language, code) })
