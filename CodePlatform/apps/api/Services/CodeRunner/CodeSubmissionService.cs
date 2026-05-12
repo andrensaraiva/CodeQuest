@@ -3,6 +3,7 @@ using CodeQuest.Api.DTOs;
 using CodeQuest.Api.Entities;
 using CodeQuest.Api.Enums;
 using CodeQuest.Api.Services.Gamification;
+using CodeQuest.Api.Services.Learning;
 using Microsoft.EntityFrameworkCore;
 
 namespace CodeQuest.Api.Services.CodeRunner;
@@ -16,7 +17,7 @@ public interface ICodeSubmissionService
     Task<PagedResult<SubmissionDto>> GetClassSubmissionsAsync(Guid classroomId, Guid teacherId, PageQuery page);
 }
 
-public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService runner, IGamificationService gamification) : ICodeSubmissionService
+public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService runner, IGamificationService gamification, IHintService hintService) : ICodeSubmissionService
 {
     public async Task<CodeRunResponse> RunAsync(Guid studentId, CodeRunRequest request)
     {
@@ -53,6 +54,12 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
         var result = await runner.RunTestsAsync(new TestRunRequest(request.Language, request.Code, exercise, exercise.Tests.OrderBy(x => x.OrderIndex).ToList()));
         var status = result.FailedCount == 0 ? SubmissionStatus.Passed : SubmissionStatus.Failed;
 
+        var (penaltyPercent, hintsUsedCount, highestHintLevel) = await hintService.ComputePenaltyAsync(studentId, exercise.Id);
+        var xpBeforePenalty = exercise.XpReward;
+        var xpAfterPenalty = status == SubmissionStatus.Passed
+            ? (int)Math.Round(xpBeforePenalty * (100 - penaltyPercent) / 100.0)
+            : 0;
+
         var submission = new Submission
         {
             ExerciseId = exercise.Id,
@@ -64,6 +71,11 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
             PassedTests = result.PassedCount,
             TotalTests = result.Tests.Count,
             AttemptNumber = previousAttempts + 1,
+            HintsUsedCount = hintsUsedCount,
+            HighestHintLevelUsed = highestHintLevel,
+            HintPenaltyPercent = penaltyPercent,
+            XpBeforePenalty = xpBeforePenalty,
+            XpAwarded = xpAfterPenalty,
             TestResults = result.Tests.Select(x => new SubmissionTestResult
             {
                 TestId = x.TestId,
@@ -82,7 +94,13 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
 
         if (status == SubmissionStatus.Passed)
         {
-            await gamification.AwardExerciseCompletionAsync(studentId, exercise, failedBefore);
+            var actuallyAwarded = await gamification.AwardExerciseCompletionAsync(studentId, exercise, failedBefore, xpAfterPenalty);
+            // If a previous submission already locked in the XP, mark this submission as awarding 0 to avoid misleading the student.
+            if (actuallyAwarded == 0)
+            {
+                submission.XpAwarded = 0;
+                await db.SaveChangesAsync();
+            }
         }
 
         return ToDto(submission);
@@ -157,6 +175,11 @@ public sealed class CodeSubmissionService(AppDbContext db, ICodeRunnerService ru
             submission.PassedTests,
             submission.TotalTests,
             submission.AttemptNumber,
+            submission.HintsUsedCount,
+            submission.HighestHintLevelUsed,
+            submission.HintPenaltyPercent,
+            submission.XpBeforePenalty,
+            submission.XpAwarded,
             submission.CreatedAt,
             submission.TestResults.Select(x => new RunnerTestResultDto(x.TestId, x.TestName, x.Passed, x.Expected, x.Output, x.Error, x.IsHidden, x.ExecutionTimeMs)).ToList());
     }

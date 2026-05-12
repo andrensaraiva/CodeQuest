@@ -4,7 +4,10 @@ import type {
   ClassReport,
   Classroom,
   CodeRunResponse,
+  EditorSettings,
   Exercise,
+  ExerciseHintSummary,
+  HintUnlockResponse,
   Lesson,
   Module,
   PagedResult,
@@ -127,4 +130,11 @@ export const api = {
   badges: () => request<Badge[]>('/me/badges'),
   hint: (exerciseId: string, studentCode: string) =>
     request<{ response: string; isMocked: boolean }>('/ai/hint', { method: 'POST', body: JSON.stringify({ exerciseId, studentCode }) }),
+  exerciseHints: (exerciseId: string) =>
+    request<ExerciseHintSummary[]>(`/exercises/${exerciseId}/hints`),
+  unlockHint: (exerciseId: string, hintId: string) =>
+    request<HintUnlockResponse>(`/exercises/${exerciseId}/hints/${hintId}/unlock`, { method: 'POST' }),
+  getEditorSettings: () => request<EditorSettings>('/me/editor-settings'),
+  updateEditorSettings: (settings: EditorSettings) =>
+    request<EditorSettings>('/me/editor-settings', { method: 'PUT', body: JSON.stringify(settings) }),
 }

@@ -8,6 +8,7 @@ using CodeQuest.Api.Services.AI;
 using CodeQuest.Api.Services.Auth;
 using CodeQuest.Api.Services.Classrooms;
 using CodeQuest.Api.Services.CodeRunner;
+using CodeQuest.Api.Services.Editor;
 using CodeQuest.Api.Services.Gamification;
 using CodeQuest.Api.Services.Learning;
 using CodeQuest.Api.Services.Reports;
@@ -119,6 +120,8 @@ builder.Services.AddScoped<ICodeSubmissionService, CodeSubmissionService>();
 builder.Services.AddScoped<IGamificationService, GamificationService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IAssistantService, AssistantService>();
+builder.Services.AddScoped<IHintService, HintService>();
+builder.Services.AddScoped<IEditorSettingsService, EditorSettingsService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

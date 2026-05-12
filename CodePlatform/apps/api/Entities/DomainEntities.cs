@@ -97,11 +97,59 @@ public sealed class Exercise
     public string HintsJson { get; set; } = "[]";
     public bool IsPublished { get; set; }
     public int OrderIndex { get; set; }
+    public bool AllowHints { get; set; } = true;
+    public bool AllowSolutionReveal { get; set; }
+    public int SolutionRevealXpPercent { get; set; }
     public Guid CreatedByTeacherId { get; set; }
     public User? CreatedByTeacher { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public List<ExerciseTest> Tests { get; set; } = [];
+    public List<ExerciseHint> ExerciseHints { get; set; } = [];
+}
+
+public sealed class ExerciseHint
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ExerciseId { get; set; }
+    public Exercise? Exercise { get; set; }
+    public int OrderIndex { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public int PenaltyPercent { get; set; } = 10;
+    public bool IsSolutionReveal { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class StudentHintUnlock
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid StudentId { get; set; }
+    public User? Student { get; set; }
+    public Guid ExerciseId { get; set; }
+    public Exercise? Exercise { get; set; }
+    public Guid HintId { get; set; }
+    public ExerciseHint? Hint { get; set; }
+    public DateTime UnlockedAt { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class StudentEditorSettings
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public string FontFamily { get; set; } = "JetBrains Mono";
+    public int FontSize { get; set; } = 14;
+    public string Theme { get; set; } = "codequest-dark";
+    public string BackgroundStyle { get; set; } = "solid-dark";
+    public bool MinimapEnabled { get; set; }
+    public bool WordWrapEnabled { get; set; }
+    public bool LineNumbersEnabled { get; set; } = true;
+    public bool AutoSuggestionsEnabled { get; set; } = true;
+    public int TabSize { get; set; } = 4;
+    public bool ReduceAnimations { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public sealed class ExerciseTest
@@ -133,6 +181,11 @@ public sealed class Submission
     public int PassedTests { get; set; }
     public int TotalTests { get; set; }
     public int AttemptNumber { get; set; }
+    public int HintsUsedCount { get; set; }
+    public int HighestHintLevelUsed { get; set; }
+    public int HintPenaltyPercent { get; set; }
+    public int XpBeforePenalty { get; set; }
+    public int XpAwarded { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<SubmissionTestResult> TestResults { get; set; } = [];
 }

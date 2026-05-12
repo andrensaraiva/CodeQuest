@@ -19,11 +19,18 @@ The production database target is PostgreSQL through EF Core. For local developm
 - `XpEvents` — immutable XP ledger.
 - `Badges` and `StudentBadges` — achievement catalog and unlocks.
 - `AiInteractions` — placeholder AI logs.
+- `ExerciseHints` — structured hint levels per exercise (added May 2026). Each row has `Title`, `Content`, `PenaltyPercent`, `IsSolutionReveal`, `OrderIndex`.
+- `StudentHintUnlocks` — tracks which hints a student unlocked for an exercise (added May 2026).
+- `StudentEditorSettings` — per-user Monaco editor preferences (added May 2026). One row per user, unique `UserId` index.
+
+Additional columns added in May 2026:
+- `Exercises.AllowHints`, `Exercises.AllowSolutionReveal`, `Exercises.SolutionRevealXpPercent`.
+- `Submissions.HintsUsedCount`, `Submissions.HighestHintLevelUsed`, `Submissions.HintPenaltyPercent`, `Submissions.XpBeforePenalty`, `Submissions.XpAwarded`.
 
 ## Indexes
 
-- Unique: `Users.Email`, `Classrooms.InviteCode`, `ClassStudents(ClassroomId, StudentId)`, `StudentBadges(StudentId, BadgeId)`, `RefreshTokens.TokenHash`.
-- Lookup: `RefreshTokens.UserId`, `Submissions(StudentId, ExerciseId)`, `Submissions.CreatedAt`, `XpEvents(StudentId, SourceType, SourceId, Reason)`.
+- Unique: `Users.Email`, `Classrooms.InviteCode`, `ClassStudents(ClassroomId, StudentId)`, `StudentBadges(StudentId, BadgeId)`, `RefreshTokens.TokenHash`, `StudentEditorSettings.UserId`, `StudentHintUnlocks(StudentId, ExerciseId, HintId)`.
+- Lookup: `RefreshTokens.UserId`, `Submissions(StudentId, ExerciseId)`, `Submissions.CreatedAt`, `XpEvents(StudentId, SourceType, SourceId, Reason)`, `ExerciseHints(ExerciseId, OrderIndex)`.
 
 ## Relationships
 
@@ -36,13 +43,13 @@ The production database target is PostgreSQL through EF Core. For local developm
 
 ## Migrations
 
-`apps/api/Migrations/InitialCreate` is the first PostgreSQL schema. New entities added since then (notably `RefreshTokens` and the extra indexes) require a new migration before deploying to a Postgres environment:
+`apps/api/Migrations/InitialCreate` is the first PostgreSQL schema. New entities added since then (`RefreshTokens`, `ExerciseHints`, `StudentHintUnlocks`, `StudentEditorSettings`, and the new columns on `Exercises` / `Submissions`) require a new migration before deploying to a Postgres environment:
 
 ```powershell
-dotnet tool run dotnet-ef migrations add AddRefreshTokensAndIndexes `
+dotnet tool run dotnet-ef migrations add HintsAndEditorSettings `
   --project CodePlatform/apps/api/CodeQuest.Api.csproj `
   --startup-project CodePlatform/apps/api/CodeQuest.Api.csproj `
   -o Migrations
 ```
 
-SQLite local development uses `EnsureCreated` instead of the PostgreSQL migration because migrations are generated for Npgsql. Use SQLite for quick local testing and PostgreSQL migrations for production-like development.
+SQLite local development uses `EnsureCreated` instead of the PostgreSQL migration because migrations are generated for Npgsql. The first time you run after pulling the May 2026 update against an existing SQLite database, delete `codequest-dev.db` so `EnsureCreated` rebuilds the schema with the new tables and columns — `EnsureCreated` does not migrate.

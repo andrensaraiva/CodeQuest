@@ -241,6 +241,9 @@ public static class DatabaseSeeder
             HintsJson = JsonSerializer.Serialize(hints),
             IsPublished = true,
             OrderIndex = xp == 150 ? 99 : xp,
+            AllowHints = true,
+            AllowSolutionReveal = difficulty == ExerciseDifficulty.Boss,
+            SolutionRevealXpPercent = difficulty == ExerciseDifficulty.Boss ? 20 : 0,
             CreatedByTeacherId = teacherId
         };
 
@@ -256,6 +259,39 @@ public static class DatabaseSeeder
             OrderIndex = index + 1
         }).ToList();
 
+        // Structured hint levels for the new hint system. The legacy HintsJson string stays for backward compatibility.
+        exercise.ExerciseHints = BuildStructuredHints(exercise, hints);
+
         return exercise;
+    }
+
+    private static List<ExerciseHint> BuildStructuredHints(Exercise exercise, string[] freeformHints)
+    {
+        // Generate four progressive hints with growing penalty. Solution reveal is added when allowed.
+        var conceptual = freeformHints.Length > 0 ? freeformHints[0] : "Think about the problem step by step before writing code.";
+        var direct = freeformHints.Length > 1 ? freeformHints[1] : "Re-read the visible tests — they describe the rule the method must follow.";
+
+        var list = new List<ExerciseHint>
+        {
+            new() { ExerciseId = exercise.Id, OrderIndex = 1, Title = "Conceptual nudge", Content = conceptual, PenaltyPercent = 10 },
+            new() { ExerciseId = exercise.Id, OrderIndex = 2, Title = "Direct guidance", Content = direct, PenaltyPercent = 20 },
+            new() { ExerciseId = exercise.Id, OrderIndex = 3, Title = "Similar example", Content = "Look at a similar method shape: a check, an early return, then the final value.", PenaltyPercent = 35 },
+            new() { ExerciseId = exercise.Id, OrderIndex = 4, Title = "Partial structure", Content = "Store the intermediate result in a variable, branch on it, then return.", PenaltyPercent = 50 }
+        };
+
+        if (exercise.AllowSolutionReveal)
+        {
+            list.Add(new ExerciseHint
+            {
+                ExerciseId = exercise.Id,
+                OrderIndex = 5,
+                Title = "Reveal reference solution",
+                Content = exercise.ReferenceSolution,
+                PenaltyPercent = 100 - exercise.SolutionRevealXpPercent,
+                IsSolutionReveal = true
+            });
+        }
+
+        return list;
     }
 }

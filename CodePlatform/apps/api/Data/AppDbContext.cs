@@ -21,6 +21,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<CodeRun> CodeRuns => Set<CodeRun>();
     public DbSet<AiInteraction> AiInteractions => Set<AiInteraction>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ExerciseHint> ExerciseHints => Set<ExerciseHint>();
+    public DbSet<StudentHintUnlock> StudentHintUnlocks => Set<StudentHintUnlock>();
+    public DbSet<StudentEditorSettings> StudentEditorSettings => Set<StudentEditorSettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -33,6 +36,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         builder.Entity<RefreshToken>().HasIndex(x => x.UserId);
         builder.Entity<Submission>().HasIndex(x => new { x.StudentId, x.ExerciseId });
         builder.Entity<Submission>().HasIndex(x => x.CreatedAt);
+        builder.Entity<ExerciseHint>().HasIndex(x => new { x.ExerciseId, x.OrderIndex });
+        builder.Entity<StudentHintUnlock>().HasIndex(x => new { x.StudentId, x.ExerciseId, x.HintId }).IsUnique();
+        builder.Entity<StudentEditorSettings>().HasIndex(x => x.UserId).IsUnique();
+
+        builder.Entity<ExerciseHint>()
+            .HasOne(x => x.Exercise)
+            .WithMany(x => x.ExerciseHints)
+            .HasForeignKey(x => x.ExerciseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<StudentHintUnlock>()
+            .HasOne(x => x.Hint)
+            .WithMany()
+            .HasForeignKey(x => x.HintId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<StudentEditorSettings>()
+            .HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Classroom>()
             .HasOne(x => x.Teacher)

@@ -1,14 +1,18 @@
-import { lazy, Suspense, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Lightbulb, Play, RotateCcw, Send, Swords } from 'lucide-react'
+import { Play, RotateCcw, Send, Settings2, Sparkles, Swords, Wand2 } from 'lucide-react'
 import { api } from '../../api/client'
 import { BadgeCard, ModuleNode, RankingList, XPBar } from '../../components/gamification/Gamification'
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, ProgressBar } from '../../components/ui/primitives'
 import { statusLabel, usePreferences } from '../../i18n/preferences'
-import type { Lesson } from '../../types'
-
-const Editor = lazy(() => import('@monaco-editor/react'))
+import type { Exercise, Lesson } from '../../types'
+import { EditorSettingsPanel } from './editor/EditorSettingsPanel'
+import { HintPanel } from './editor/HintPanel'
+import { QuestEditor } from './editor/QuestEditor'
+import { useEditorSettings } from './editor/useEditorSettings'
+import { IntegrityTracker } from './editor/integrityTracker'
+import { formatCSharpBasic } from './editor/csharpSnippets'
 
 export function StudentDashboard() {
   const { t, content } = usePreferences()
@@ -127,64 +131,103 @@ export function LessonPage() {
 }
 
 export function ExercisePage() {
-  const { t, content, theme } = usePreferences()
+  const { t, content } = usePreferences()
   const { exerciseId = '' } = useParams()
   const queryClient = useQueryClient()
   const exercise = useQuery({ queryKey: ['exercise', exerciseId], queryFn: () => api.exercise(exerciseId), enabled: !!exerciseId })
   const submissions = useQuery({ queryKey: ['submissions'], queryFn: () => api.mySubmissions() })
+  const hints = useQuery({ queryKey: ['hints', exerciseId], queryFn: () => api.exerciseHints(exerciseId), enabled: !!exerciseId && !!exercise.data?.allowHints })
+
   const currentExercise = exercise.data
   const [codeDraft, setCodeDraft] = useState<{ exerciseId: string; value: string } | null>(null)
   const code = codeDraft && currentExercise && codeDraft.exerciseId === currentExercise.id
     ? codeDraft.value
     : currentExercise?.starterCode ?? ''
-  const [hint, setHint] = useState('')
   const [lastAction, setLastAction] = useState<'run' | 'submit' | null>(null)
-  const run = useMutation({ mutationFn: () => api.runCode(exerciseId, exercise.data!.language, code) })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const { settings, update, reset } = useEditorSettings()
+
+  // One IntegrityTracker per exercise so paste/keystroke counts reset between quests. useMemo here is
+  // intentional: the tracker itself owns mutable counters, but we only want a *new* tracker when the
+  // exercise changes, which is exactly what useMemo's identity guarantee gives us.
+  const exerciseIdForTracker = currentExercise?.id
+  const starterCodeForTracker = currentExercise?.starterCode
+  const tracker = useMemo(
+    () => (exerciseIdForTracker ? new IntegrityTracker(starterCodeForTracker ?? '') : null),
+    [exerciseIdForTracker, starterCodeForTracker],
+  )
+
+  const run = useMutation({
+    mutationFn: () => api.runCode(exerciseId, exercise.data!.language, code),
+    onMutate: () => tracker?.recordRun(),
+  })
   const submit = useMutation({
     mutationFn: () => api.submitCode(exerciseId, exercise.data!.language, code),
+    onMutate: () => tracker?.recordSubmit(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['submissions'] })
       queryClient.invalidateQueries({ queryKey: ['xp'] })
       queryClient.invalidateQueries({ queryKey: ['badges'] })
     },
   })
-  const hintMutation = useMutation({ mutationFn: () => api.hint(exerciseId, code), onSuccess: (data) => setHint(data.response) })
+
+  const possibleXp = useMemo(() => {
+    if (!currentExercise) return 0
+    const hintList = hints.data ?? currentExercise.hints ?? []
+    const unlocked = hintList.filter((h) => h.isUnlocked)
+    if (unlocked.length === 0) return currentExercise.xpReward
+    const reveal = unlocked.find((h) => h.isSolutionReveal)
+    if (reveal) {
+      return Math.round((currentExercise.xpReward * Math.max(0, currentExercise.solutionRevealXpPercent)) / 100)
+    }
+    const maxPenalty = Math.max(...unlocked.map((h) => h.penaltyPercent))
+    return Math.round((currentExercise.xpReward * (100 - maxPenalty)) / 100)
+  }, [currentExercise, hints.data])
 
   if (exercise.isLoading) return <LoadingState />
   if (!currentExercise) return <ErrorState message={t('student.exerciseNotFound')} />
 
-  const latestResult = submit.data
-  const runResult = run.data
   const skills = safeArray(currentExercise.skillsJson)
   const attempts = submissions.data?.items.filter((item) => item.exerciseId === currentExercise.id) ?? []
+  const latestResult = submit.data
+  const runResult = run.data
+  const submitStatus = computeSubmitStatus(submit, run, t)
 
   return (
     <div className="space-y-4">
+      <ArenaTopBar
+        exercise={currentExercise}
+        possibleXp={possibleXp}
+        status={submitStatus}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
       <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <Card>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={currentExercise.difficulty === 'Boss' ? 'yellow' : 'green'}>{content(currentExercise.difficulty)}</Badge>
-            <Badge tone="cyan">{currentExercise.language}</Badge>
-            <Badge tone="purple">{currentExercise.xpReward} XP</Badge>
-          </div>
-          <h1 className="cq-heading mt-4 text-3xl font-black">{content(currentExercise.title)}</h1>
-          <p className="cq-muted mt-3">{content(currentExercise.description)}</p>
-          <div className="mt-4 flex flex-wrap gap-2">{skills.map((skill) => <Badge key={skill} tone="gray">{content(skill)}</Badge>)}</div>
-          <h2 className="cq-heading mt-6 font-black">{t('student.visibleTests')}</h2>
-          <div className="mt-3 space-y-2">{currentExercise.tests.map((test) => <div key={test.id} className="cq-soft rounded-lg p-3 text-sm">{test.name} {t('student.shouldReturn')} {test.expectedOutput}</div>)}</div>
-          <div className="mt-4 rounded-lg border border-cyan-300/30 bg-cyan-400/10 p-3 text-sm">
-            <p className="font-black text-cyan-700 dark:text-cyan-100">{t('student.mockNoticeTitle')}</p>
-            <p className="cq-muted mt-1">{t('student.mockNoticeText')}</p>
-          </div>
-          <Button className="mt-5" variant="secondary" onClick={() => hintMutation.mutate()}><Lightbulb size={18} /> {t('student.askHint')}</Button>
-          {hintMutation.isError && <p className="mt-3 rounded-lg border border-pink-300/30 bg-pink-500/10 p-3 text-sm text-pink-700 dark:text-pink-100">{hintMutation.error instanceof Error ? hintMutation.error.message : t('student.requestFailed')}</p>}
-          {hint && <p className="mt-3 rounded-lg border border-cyan-300/30 bg-cyan-400/10 p-3 text-sm text-cyan-700 dark:text-cyan-100">{content(hint)}</p>}
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <h2 className="cq-heading flex items-center gap-2 text-xl font-black"><Sparkles size={16} /> {t('exercise.briefing')}</h2>
+            <p className="cq-muted mt-3">{content(currentExercise.description)}</p>
+            <div className="mt-4 flex flex-wrap gap-2">{skills.map((skill) => <Badge key={skill} tone="gray">{content(skill)}</Badge>)}</div>
+            <h3 className="cq-heading mt-5 font-black">{t('student.visibleTests')}</h3>
+            <div className="mt-2 space-y-2">
+              {currentExercise.tests.map((test) => (
+                <div key={test.id} className="cq-soft rounded-lg p-3 text-sm">
+                  <code className="font-mono text-[var(--cq-heading)]">{test.name}</code> {t('student.shouldReturn')} <strong>{test.expectedOutput}</strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <HintPanel exercise={currentExercise} />
+        </div>
 
         <Card className="p-0">
           <div className="cq-border flex flex-wrap items-center justify-between gap-3 border-b p-3">
             <div className="cq-muted flex items-center gap-2 text-sm font-bold"><Swords size={18} /> {t('student.questEditor')}</div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={() => setSettingsOpen(true)} title={t('editor.settingsTitle')}><Settings2 size={16} /></Button>
+              <Button variant="ghost" onClick={() => setCodeDraft({ exerciseId: currentExercise.id, value: formatCSharpBasic(code, settings.tabSize) })} title={t('editor.format')}><Wand2 size={16} /></Button>
+              <Button variant="ghost" onClick={() => setCodeDraft({ exerciseId: currentExercise.id, value: currentExercise.starterCode })} title={t('editor.reset')}><RotateCcw size={16} /></Button>
               <Button variant="secondary" onClick={() => {
                 setLastAction('run')
                 run.mutate()
@@ -193,12 +236,17 @@ export function ExercisePage() {
                 setLastAction('submit')
                 submit.mutate()
               }} disabled={run.isPending || submit.isPending}><Send size={16} /> {submit.isPending ? t('student.submitting') : t('student.submit')}</Button>
-              <Button variant="ghost" onClick={() => setCodeDraft({ exerciseId: currentExercise.id, value: currentExercise.starterCode })}><RotateCcw size={16} /></Button>
             </div>
           </div>
-          <Suspense fallback={<div className="cq-muted flex h-[520px] items-center justify-center text-sm">{t('student.questEditor')}…</div>}>
-            <Editor height="520px" defaultLanguage="csharp" theme={theme === 'dark' ? 'vs-dark' : 'light'} value={code} onChange={(value) => setCodeDraft({ exerciseId: currentExercise.id, value: value ?? '' })} options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 } }} />
-          </Suspense>
+          {tracker && (
+            <QuestEditor
+              exercise={currentExercise}
+              value={code}
+              onChange={(value) => setCodeDraft({ exerciseId: currentExercise.id, value })}
+              settings={settings}
+              integrity={tracker}
+            />
+          )}
         </Card>
       </div>
 
@@ -208,15 +256,71 @@ export function ExercisePage() {
           action={lastAction === 'submit' ? t('student.submitAction') : lastAction === 'run' ? t('student.runAction') : undefined}
           loading={run.isPending || submit.isPending}
           error={run.error ?? submit.error}
-          result={latestResult ? { feedback: latestResult.feedback, tests: latestResult.testResults, score: latestResult.score } : runResult}
+          result={latestResult ? { feedback: latestResult.feedback, tests: latestResult.testResults, score: latestResult.score, xpAwarded: latestResult.xpAwarded, xpBeforePenalty: latestResult.xpBeforePenalty, hintPenaltyPercent: latestResult.hintPenaltyPercent } : runResult}
         />
         <Card>
           <h2 className="cq-heading font-black">{t('student.attemptHistory')}</h2>
-          <div className="mt-3 space-y-2">{attempts.map((attempt) => <div key={attempt.id} className="cq-soft flex items-center justify-between rounded-lg px-3 py-2 text-sm"><span>{t('student.attempt')} #{attempt.attemptNumber}</span><Badge tone={attempt.status === 'Passed' ? 'green' : 'red'}>{statusLabel(attempt.status, t)}</Badge></div>)}</div>
+          <div className="mt-3 space-y-2">
+            {attempts.map((attempt) => (
+              <div key={attempt.id} className="cq-soft flex items-center justify-between rounded-lg px-3 py-2 text-sm">
+                <span>{t('student.attempt')} #{attempt.attemptNumber}</span>
+                <div className="flex items-center gap-2">
+                  {attempt.hintsUsedCount > 0 && (
+                    <Badge tone="yellow">-{attempt.hintPenaltyPercent}%</Badge>
+                  )}
+                  <Badge tone={attempt.status === 'Passed' ? 'green' : 'red'}>{statusLabel(attempt.status, t)}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
+
+      <EditorSettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={update}
+        onReset={reset}
+      />
     </div>
   )
+}
+
+function ArenaTopBar({ exercise, possibleXp, status, onOpenSettings }: { exercise: Exercise; possibleXp: number; status: string | null; onOpenSettings: () => void }) {
+  const { t, content } = usePreferences()
+  const penaltyActive = possibleXp < exercise.xpReward
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge tone={exercise.difficulty === 'Boss' ? 'yellow' : 'green'}>{content(exercise.difficulty)}</Badge>
+        <Badge tone="cyan">{exercise.language}</Badge>
+        <Badge tone={penaltyActive ? 'yellow' : 'purple'}>{possibleXp} / {exercise.xpReward} XP</Badge>
+        {status && <Badge tone="gray">{status}</Badge>}
+        <h1 className="cq-heading ml-2 grow text-2xl font-black md:text-3xl">{content(exercise.title)}</h1>
+        <Button variant="ghost" onClick={onOpenSettings}><Settings2 size={16} /> {t('editor.settingsTitle')}</Button>
+      </div>
+      {penaltyActive && (
+        <p className="cq-muted mt-2 text-xs">{t('exercise.penaltyNote')}</p>
+      )}
+    </Card>
+  )
+}
+
+function computeSubmitStatus(
+  submit: { isPending: boolean; isError: boolean; data?: { status: string; xpAwarded: number; hintPenaltyPercent: number } | undefined },
+  run: { isPending: boolean; isError: boolean; data?: { status: string } | undefined },
+  t: ReturnType<typeof usePreferences>['t'],
+): string | null {
+  if (submit.isPending || run.isPending) return t('exercise.running')
+  if (submit.isError) return t('exercise.errored')
+  if (submit.data) {
+    if (submit.data.status === 'Passed' && submit.data.hintPenaltyPercent > 0) return t('exercise.xpReducedHints')
+    if (submit.data.status === 'Passed') return t('exercise.xpAwarded')
+    return t('exercise.testsFailed')
+  }
+  if (run.data) return run.data.status === 'Completed' ? t('exercise.testsPassed') : t('exercise.testsFailed')
+  return null
 }
 
 export function BadgesPage() {
@@ -253,7 +357,15 @@ function ResultPanel({
   action?: string
   loading?: boolean
   error?: Error | null
-  result?: { feedback: string; output?: string; tests: { name: string; passed: boolean; expected?: string; actual?: string; error?: string; isHidden: boolean }[]; score: number }
+  result?: {
+    feedback: string
+    output?: string
+    tests: { name: string; passed: boolean; expected?: string; actual?: string; error?: string; isHidden: boolean }[]
+    score: number
+    xpAwarded?: number
+    xpBeforePenalty?: number
+    hintPenaltyPercent?: number
+  }
 }) {
   const { t, content } = usePreferences()
   return (
@@ -268,6 +380,18 @@ function ResultPanel({
       {!loading && !error && result ? (
         <div className="mt-3 space-y-3">
           <div className="cq-soft rounded-lg p-3 text-sm">{content(result.feedback)}</div>
+          {result.xpAwarded !== undefined && result.xpBeforePenalty !== undefined && (
+            <div className="rounded-lg border border-[#35ff7a]/30 bg-[#35ff7a]/10 p-3 text-sm">
+              <strong className="text-[#168044] dark:text-[#83ffa8]">
+                {result.xpAwarded} XP {t('exercise.awarded')}
+              </strong>
+              {result.hintPenaltyPercent && result.hintPenaltyPercent > 0 ? (
+                <span className="cq-muted ml-2">
+                  ({t('exercise.basePotential')}: {result.xpBeforePenalty} XP, -{result.hintPenaltyPercent}% {t('exercise.dueToHints')})
+                </span>
+              ) : null}
+            </div>
+          )}
           <ProgressBar value={result.score} />
           {result.tests.map((test) => <div key={test.name} className="cq-soft rounded-lg p-3 text-sm"><div className="flex items-center justify-between"><span className="cq-heading font-bold">{test.name}{test.isHidden ? ` (${t('common.hidden')})` : ''}</span><Badge tone={test.passed ? 'green' : 'red'}>{test.passed ? t('common.passed') : t('common.failed')}</Badge></div>{test.error && <p className="mt-2 text-pink-100">{test.error}</p>}</div>)}
         </div>

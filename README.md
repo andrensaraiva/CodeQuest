@@ -34,13 +34,14 @@ O ciclo principal:
 | --- | --- |
 | Autenticacao | Cadastro, login, JWT com refresh token rotacionado, BCrypt, rate limiting nos endpoints `/auth/*` |
 | Aprendizagem | Trilhas, modulos, aulas, exercicios, testes visiveis e ocultos |
-| Editor | Monaco Editor com lazy load |
+| Editor | Monaco Editor com lazy load, painel de configuracoes por aluno (fonte, tema, fundo, tab, minimapa, quebra de linha, animacoes), 6 temas customizados, autocomplete C# com snippets cientes do exercicio e botao basico de formatacao |
+| Dicas | Sistema de dicas progressivas (4 niveis + revelacao opcional da solucao) com penalidade de XP configuravel pelo professor e UI de confirmacao |
 | Correcao | `RoslynCodeRunnerService` (compilação real, timeout, allowlist de APIs) ou `MockCodeRunnerService`, selecionável por `CodeRunner:Provider` |
 | Gamificacao | XP, niveis, badges, ranking, awards protegidos por transação |
 | Idiomas | Interface bilingue com PT-BR como idioma inicial e EN-US como alternativa |
 | Tema | Alternancia de modo Noite/Dia persistida no navegador |
 | Professor | Dashboard, turmas, detalhe da turma, builder de exercicios e relatorios |
-| Aluno | Dashboard, mapa de aprendizagem, aulas, exercicios, badges e ranking |
+| Aluno | Dashboard, mapa de aprendizagem, aulas, exercicios, badges, ranking, editor Monaco customizavel e dicas progressivas com penalidade de XP |
 | Dados | EF Core, SQLite para desenvolvimento local e PostgreSQL via Docker, índices em colunas quentes |
 | Qualidade | FluentValidation em todos os DTOs, Serilog estruturado, `ProblemDetails` em erros, `ErrorBoundary` no React |
 | Testes | xUnit + EF InMemory no backend, Vitest + Testing Library no frontend |
@@ -54,8 +55,10 @@ O ciclo principal:
 - Dashboard com XP, nivel, badges e quest atual.
 - Mapa de aprendizagem com modulos e progresso.
 - Aulas e exercicios de C# orientados a logica de jogos.
+- Editor Monaco customizavel: 6 temas (CodeQuest Dark, Neon Dungeon, Cyber Academy, Forest Terminal, Classic Dark, Light Mode), 6 fundos, fontes, tab size, minimapa, quebra de linha, animacoes reduzidas e autocomplete C# com snippets cientes do exercicio.
+- Sistema de dicas progressivas: o aluno pode desbloquear dicas em niveis crescentes, mas cada nivel reduz o XP maximo da quest. O painel exibe o XP possivel em tempo real.
 - Botao **Executar** para testes visiveis.
-- Botao **Enviar** para todos os testes e ganho de XP.
+- Botao **Enviar** para todos os testes e ganho de XP (descontado quando dicas foram usadas).
 - Feedback visual de execucao/envio, erros de API e historico de tentativas (paginado).
 - Ranking positivo da turma, sem exposicao punitiva.
 
@@ -237,6 +240,8 @@ Base local: `http://localhost:5000`. Erros seguem `application/problem+json`.
 | Learning | `GET /tracks`, `GET /modules/{id}`, `POST /exercises`, `POST /exercises/{id}/publish` |
 | Code | `POST /code/run`, `POST /code/submit` |
 | Submissions | `GET /submissions/me?page=1&pageSize=25`, `GET /submissions/exercises/{exerciseId}`, `GET /submissions/classes/{classroomId}` |
+| Hints | `GET /exercises/{id}/hints`, `POST /exercises/{id}/hints/{hintId}/unlock` |
+| Editor | `GET /me/editor-settings`, `PUT /me/editor-settings` |
 | Gamification | `GET /me/xp`, `GET /me/badges` |
 | AI (mock) | `POST /ai/hint`, `POST /ai/generate-exercise`, `POST /ai/generate-tests` |
 | Ops | `GET /health` |
@@ -274,6 +279,8 @@ dotnet tool run dotnet-ef migrations add NomeDaMigration `
 | `CodePlatform/docs/STUDENT_GUIDE.md` | Fluxo do aluno |
 | `CodePlatform/docs/TEACHER_GUIDE.md` | Fluxo do professor |
 | `CodePlatform/docs/UNITY_SUPPORT.md` | Plano de suporte Unity |
+| `CodePlatform/docs/EDITOR_EXPERIENCE.md` | Customizacao do editor Monaco, temas, fundos, snippets e fontes |
+| `CodePlatform/docs/HINT_SYSTEM.md` | Niveis de dicas, calculo de penalidade de XP e configuracao por professor |
 | `CodePlatform/docs/ROADMAP.md` | Proximas fases e hardening |
 | `CodePlatform/docs/CONTINUATION_GUIDE.md` | Guia para continuidade do desenvolvimento |
 
@@ -286,6 +293,9 @@ dotnet tool run dotnet-ef migrations add NomeDaMigration `
 - A atribuicao de trilhas especificas por turma ainda deve virar tabela propria.
 - O builder de professor cria exercicios simples; o editor completo de testes visiveis/ocultos e a proxima evolucao natural.
 - A tabela `RefreshTokens` precisa de uma migration nova antes de subir em Postgres.
+- O builder de professor ainda nao tem UI para criar dicas. A API ja aceita um array `Hints` no `CreateExerciseRequest`, e o seeder gera 4 dicas demo automaticamente para os exercicios padrao.
+- O `IntegrityTracker` no front coleta paste/keystroke/timing localmente, mas a transmissao para o backend e os signals de integridade serao implementados na Fase 4.
+- Apos puxar a atualizacao de maio/2026, apague `apps/api/codequest-dev.db` uma vez antes de subir o backend para que `EnsureCreated` recrie o schema com as novas tabelas (`ExerciseHints`, `StudentHintUnlocks`, `StudentEditorSettings`) e as novas colunas em `Exercises`/`Submissions`. Em Postgres, gere a migration `HintsAndEditorSettings`.
 
 ## Roadmap Curto
 

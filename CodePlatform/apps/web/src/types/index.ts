@@ -91,7 +91,69 @@ export interface Exercise {
   hintsJson: string
   isPublished: boolean
   orderIndex: number
+  allowHints: boolean
+  allowSolutionReveal: boolean
+  solutionRevealXpPercent: number
   tests: ExerciseTest[]
+  hints: ExerciseHintSummary[]
+}
+
+export interface ExerciseHintSummary {
+  id: string
+  orderIndex: number
+  title: string
+  penaltyPercent: number
+  isSolutionReveal: boolean
+  isUnlocked: boolean
+  content?: string | null
+}
+
+export interface HintUnlockResponse {
+  hintId: string
+  orderIndex: number
+  title: string
+  content: string
+  penaltyPercent: number
+  isSolutionReveal: boolean
+  possibleXpRemaining: number
+  xpReward: number
+}
+
+export type EditorThemeKey =
+  | 'codequest-dark'
+  | 'neon-dungeon'
+  | 'cyber-academy'
+  | 'forest-terminal'
+  | 'classic-dark'
+  | 'light-mode'
+
+export type EditorBackgroundKey =
+  | 'solid-dark'
+  | 'subtle-grid'
+  | 'neon-gradient'
+  | 'pixel-stars'
+  | 'terminal-glow'
+  | 'low-contrast-focus'
+
+export type EditorFontFamily =
+  | 'JetBrains Mono'
+  | 'Fira Code'
+  | 'Cascadia Code'
+  | 'Source Code Pro'
+  | 'Consolas'
+  | 'Default Mono'
+
+export interface EditorSettings {
+  fontFamily: EditorFontFamily
+  fontSize: number
+  theme: EditorThemeKey
+  backgroundStyle: EditorBackgroundKey
+  minimapEnabled: boolean
+  wordWrapEnabled: boolean
+  lineNumbersEnabled: boolean
+  autoSuggestionsEnabled: boolean
+  tabSize: number
+  reduceAnimations: boolean
 }
 
 export interface RunnerTestResult {
@@ -128,6 +190,11 @@ export interface Submission {
   passedTests: number
   totalTests: number
   attemptNumber: number
+  hintsUsedCount: number
+  highestHintLevelUsed: number
+  hintPenaltyPercent: number
+  xpBeforePenalty: number
+  xpAwarded: number
   createdAt: string
   testResults: RunnerTestResult[]
 }

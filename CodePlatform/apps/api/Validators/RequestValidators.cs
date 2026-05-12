@@ -53,6 +53,48 @@ public sealed class CreateExerciseRequestValidator : AbstractValidator<CreateExe
             test.RuleFor(t => t.Name).NotEmpty().MaximumLength(200);
             test.RuleFor(t => t.ExpectedOutput).NotNull();
         });
+        RuleFor(x => x.SolutionRevealXpPercent!.Value)
+            .InclusiveBetween(0, 100)
+            .When(x => x.SolutionRevealXpPercent.HasValue);
+        When(x => x.Hints is not null, () =>
+        {
+            RuleForEach(x => x.Hints!).ChildRules(hint =>
+            {
+                hint.RuleFor(h => h.Title).NotEmpty().MaximumLength(200);
+                hint.RuleFor(h => h.Content).NotEmpty().MaximumLength(4000);
+                hint.RuleFor(h => h.PenaltyPercent).InclusiveBetween(0, 100);
+            });
+        });
+    }
+}
+
+public sealed class EditorSettingsValidator : AbstractValidator<EditorSettingsDto>
+{
+    private static readonly string[] AllowedFonts =
+    [
+        "JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "Consolas", "Default Mono"
+    ];
+
+    private static readonly string[] AllowedThemes =
+    [
+        "codequest-dark", "neon-dungeon", "cyber-academy", "forest-terminal", "classic-dark", "light-mode"
+    ];
+
+    private static readonly string[] AllowedBackgrounds =
+    [
+        "solid-dark", "subtle-grid", "neon-gradient", "pixel-stars", "terminal-glow", "low-contrast-focus"
+    ];
+
+    public EditorSettingsValidator()
+    {
+        RuleFor(x => x.FontFamily).Must(value => AllowedFonts.Contains(value))
+            .WithMessage($"FontFamily must be one of: {string.Join(", ", AllowedFonts)}");
+        RuleFor(x => x.FontSize).InclusiveBetween(10, 28);
+        RuleFor(x => x.Theme).Must(value => AllowedThemes.Contains(value))
+            .WithMessage($"Theme must be one of: {string.Join(", ", AllowedThemes)}");
+        RuleFor(x => x.BackgroundStyle).Must(value => AllowedBackgrounds.Contains(value))
+            .WithMessage($"BackgroundStyle must be one of: {string.Join(", ", AllowedBackgrounds)}");
+        RuleFor(x => x.TabSize).InclusiveBetween(2, 8);
     }
 }
 

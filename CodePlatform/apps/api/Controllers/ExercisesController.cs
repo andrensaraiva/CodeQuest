@@ -58,6 +58,9 @@ public sealed class ExercisesController(ILearningService learning, AppDbContext 
         existing.SkillsJson = request.SkillsJson;
         existing.HintsJson = request.HintsJson;
         existing.IsPublished = request.IsPublished;
+        if (request.AllowHints.HasValue) existing.AllowHints = request.AllowHints.Value;
+        if (request.AllowSolutionReveal.HasValue) existing.AllowSolutionReveal = request.AllowSolutionReveal.Value;
+        if (request.SolutionRevealXpPercent.HasValue) existing.SolutionRevealXpPercent = request.SolutionRevealXpPercent.Value;
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return Ok(await learning.GetExerciseAsync(id, true));

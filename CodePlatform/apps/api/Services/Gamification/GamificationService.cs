@@ -10,7 +10,7 @@ public interface IGamificationService
 {
     Task<XpSummaryDto> GetXpSummaryAsync(Guid studentId);
     Task<IReadOnlyList<BadgeDto>> GetBadgesAsync(Guid studentId);
-    Task AwardExerciseCompletionAsync(Guid studentId, Exercise exercise, int failedAttemptsBeforeSuccess);
+    Task<int> AwardExerciseCompletionAsync(Guid studentId, Exercise exercise, int failedAttemptsBeforeSuccess, int? xpOverride = null);
     Task<IReadOnlyList<RankingEntryDto>> GetClassRankingAsync(Guid classroomId);
 }
 
@@ -34,7 +34,7 @@ public sealed class GamificationService(AppDbContext db) : IGamificationService
         }).ToList();
     }
 
-    public async Task AwardExerciseCompletionAsync(Guid studentId, Exercise exercise, int failedAttemptsBeforeSuccess)
+    public async Task<int> AwardExerciseCompletionAsync(Guid studentId, Exercise exercise, int failedAttemptsBeforeSuccess, int? xpOverride = null)
     {
         await using var tx = await db.Database.BeginTransactionAsync();
 
@@ -44,6 +44,7 @@ public sealed class GamificationService(AppDbContext db) : IGamificationService
             x.SourceId == exercise.Id &&
             x.Reason == "Exercise completed");
 
+        var awardedAmount = xpOverride ?? exercise.XpReward;
         if (!alreadyAwarded)
         {
             db.XpEvents.Add(new XpEvent
@@ -51,14 +52,19 @@ public sealed class GamificationService(AppDbContext db) : IGamificationService
                 StudentId = studentId,
                 SourceType = "Exercise",
                 SourceId = exercise.Id,
-                Amount = exercise.XpReward,
+                Amount = awardedAmount,
                 Reason = "Exercise completed"
             });
+        }
+        else
+        {
+            awardedAmount = 0;
         }
 
         await UnlockBadgesAsync(studentId, exercise, failedAttemptsBeforeSuccess);
         await db.SaveChangesAsync();
         await tx.CommitAsync();
+        return awardedAmount;
     }
 
     public async Task<IReadOnlyList<RankingEntryDto>> GetClassRankingAsync(Guid classroomId)

@@ -131,17 +131,17 @@ public sealed class LearningService(AppDbContext db) : ILearningService
 
     public async Task<IReadOnlyList<ExerciseDto>> GetExercisesAsync(Guid moduleId, bool includeHiddenTests)
     {
-        var exercises = await db.Exercises.Include(x => x.Tests).Where(x => x.ModuleId == moduleId).OrderBy(x => x.OrderIndex).ToListAsync();
+        var exercises = await db.Exercises.Include(x => x.Tests).Include(x => x.ExerciseHints).Where(x => x.ModuleId == moduleId).OrderBy(x => x.OrderIndex).ToListAsync();
         return exercises.Select(x => ToExerciseDto(x, includeHiddenTests)).ToList();
     }
 
     public async Task<ExerciseDto?> GetExerciseAsync(Guid id, bool includeHiddenTests)
     {
-        var exercise = await db.Exercises.Include(x => x.Tests).FirstOrDefaultAsync(x => x.Id == id);
+        var exercise = await db.Exercises.Include(x => x.Tests).Include(x => x.ExerciseHints).FirstOrDefaultAsync(x => x.Id == id);
         return exercise is null ? null : ToExerciseDto(exercise, includeHiddenTests);
     }
 
-    public Task<Exercise?> GetExerciseEntityAsync(Guid id) => db.Exercises.Include(x => x.Tests).FirstOrDefaultAsync(x => x.Id == id);
+    public Task<Exercise?> GetExerciseEntityAsync(Guid id) => db.Exercises.Include(x => x.Tests).Include(x => x.ExerciseHints).FirstOrDefaultAsync(x => x.Id == id);
 
     public async Task<ExerciseDto> CreateExerciseAsync(Guid teacherId, CreateExerciseRequest request)
     {
@@ -160,6 +160,9 @@ public sealed class LearningService(AppDbContext db) : ILearningService
             HintsJson = request.HintsJson,
             IsPublished = request.IsPublished,
             OrderIndex = request.OrderIndex,
+            AllowHints = request.AllowHints ?? true,
+            AllowSolutionReveal = request.AllowSolutionReveal ?? false,
+            SolutionRevealXpPercent = request.SolutionRevealXpPercent ?? 0,
             CreatedByTeacherId = teacherId,
             Tests = request.Tests.Select(t => new ExerciseTest
             {
@@ -171,6 +174,14 @@ public sealed class LearningService(AppDbContext db) : ILearningService
                 IsHidden = t.IsHidden,
                 Points = t.Points,
                 OrderIndex = t.OrderIndex
+            }).ToList(),
+            ExerciseHints = (request.Hints ?? []).Select(h => new ExerciseHint
+            {
+                Title = h.Title,
+                Content = h.Content,
+                PenaltyPercent = h.PenaltyPercent,
+                IsSolutionReveal = h.IsSolutionReveal,
+                OrderIndex = h.OrderIndex
             }).ToList()
         };
 
@@ -181,7 +192,7 @@ public sealed class LearningService(AppDbContext db) : ILearningService
 
     public async Task<ExerciseDto?> PublishExerciseAsync(Guid id, Guid teacherId)
     {
-        var exercise = await db.Exercises.Include(x => x.Tests).FirstOrDefaultAsync(x => x.Id == id && x.CreatedByTeacherId == teacherId);
+        var exercise = await db.Exercises.Include(x => x.Tests).Include(x => x.ExerciseHints).FirstOrDefaultAsync(x => x.Id == id && x.CreatedByTeacherId == teacherId);
         if (exercise is null)
         {
             return null;
@@ -217,6 +228,12 @@ public sealed class LearningService(AppDbContext db) : ILearningService
                 x.OrderIndex))
             .ToList();
 
+        // Hints surface here only as summaries (title + penalty). Content is hidden until the student unlocks it via /hints/unlock.
+        var hintSummaries = exercise.ExerciseHints
+            .OrderBy(x => x.OrderIndex)
+            .Select(h => new ExerciseHintSummaryDto(h.Id, h.OrderIndex, h.Title, h.PenaltyPercent, h.IsSolutionReveal, IsUnlocked: false, Content: null))
+            .ToList();
+
         return new ExerciseDto(
             exercise.Id,
             exercise.ModuleId,
@@ -231,6 +248,10 @@ public sealed class LearningService(AppDbContext db) : ILearningService
             exercise.HintsJson,
             exercise.IsPublished,
             exercise.OrderIndex,
-            tests);
+            exercise.AllowHints,
+            exercise.AllowSolutionReveal,
+            exercise.SolutionRevealXpPercent,
+            tests,
+            hintSummaries);
     }
 }

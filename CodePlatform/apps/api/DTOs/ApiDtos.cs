@@ -46,7 +46,11 @@ public sealed record ExerciseDto(
     string HintsJson,
     bool IsPublished,
     int OrderIndex,
-    IReadOnlyList<ExerciseTestDto> Tests);
+    bool AllowHints,
+    bool AllowSolutionReveal,
+    int SolutionRevealXpPercent,
+    IReadOnlyList<ExerciseTestDto> Tests,
+    IReadOnlyList<ExerciseHintSummaryDto> Hints);
 
 public sealed record ExerciseTestDto(Guid Id, string Name, ExerciseTestType Type, string? Input, string? ExpectedOutput, string? TestCode, bool IsHidden, int Points, int OrderIndex);
 public sealed record CreateExerciseRequest(
@@ -63,16 +67,52 @@ public sealed record CreateExerciseRequest(
     string HintsJson,
     bool IsPublished,
     int OrderIndex,
-    IReadOnlyList<CreateExerciseTestRequest> Tests);
+    IReadOnlyList<CreateExerciseTestRequest> Tests,
+    bool? AllowHints = null,
+    bool? AllowSolutionReveal = null,
+    int? SolutionRevealXpPercent = null,
+    IReadOnlyList<CreateExerciseHintRequest>? Hints = null);
 
 public sealed record CreateExerciseTestRequest(string Name, ExerciseTestType Type, string? Input, string ExpectedOutput, string TestCode, bool IsHidden, int Points, int OrderIndex);
+public sealed record CreateExerciseHintRequest(string Title, string Content, int PenaltyPercent, bool IsSolutionReveal, int OrderIndex);
+
+public sealed record ExerciseHintSummaryDto(Guid Id, int OrderIndex, string Title, int PenaltyPercent, bool IsSolutionReveal, bool IsUnlocked, string? Content);
+public sealed record HintUnlockResponse(Guid HintId, int OrderIndex, string Title, string Content, int PenaltyPercent, bool IsSolutionReveal, int PossibleXpRemaining, int XpReward);
+
+public sealed record EditorSettingsDto(
+    string FontFamily,
+    int FontSize,
+    string Theme,
+    string BackgroundStyle,
+    bool MinimapEnabled,
+    bool WordWrapEnabled,
+    bool LineNumbersEnabled,
+    bool AutoSuggestionsEnabled,
+    int TabSize,
+    bool ReduceAnimations);
 
 public sealed record CodeRunRequest(Guid ExerciseId, ProgrammingLanguage Language, string Code, string? Stdin);
 public sealed record SubmitCodeRequest(Guid ExerciseId, ProgrammingLanguage Language, string Code);
 public sealed record RunnerTestResultDto(Guid? TestId, string Name, bool Passed, string? Expected, string? Actual, string? Error, bool IsHidden, int ExecutionTimeMs);
 public sealed record CodeRunResponse(CodeRunStatus Status, string Output, string? Error, string? CompilationError, IReadOnlyList<RunnerTestResultDto> Tests, int ExecutionTimeMs, int PassedCount, int FailedCount, int Score, string Feedback);
 
-public sealed record SubmissionDto(Guid Id, Guid ExerciseId, Guid StudentId, SubmissionStatus Status, int Score, string Feedback, int PassedTests, int TotalTests, int AttemptNumber, DateTime CreatedAt, IReadOnlyList<RunnerTestResultDto> TestResults);
+public sealed record SubmissionDto(
+    Guid Id,
+    Guid ExerciseId,
+    Guid StudentId,
+    SubmissionStatus Status,
+    int Score,
+    string Feedback,
+    int PassedTests,
+    int TotalTests,
+    int AttemptNumber,
+    int HintsUsedCount,
+    int HighestHintLevelUsed,
+    int HintPenaltyPercent,
+    int XpBeforePenalty,
+    int XpAwarded,
+    DateTime CreatedAt,
+    IReadOnlyList<RunnerTestResultDto> TestResults);
 
 public sealed record XpSummaryDto(int TotalXp, int Level, int CurrentLevelXp, int NextLevelXp);
 public sealed record BadgeDto(Guid Id, string Title, string Description, string Icon, bool IsUnlocked, DateTime? EarnedAt);
