@@ -48,6 +48,14 @@ O ciclo principal:
 | CI | GitHub Actions roda build, lint e testes em cada push/PR |
 | Documentacao | Guias de arquitetura, API, banco, frontend, backend, runner, Unity e continuidade |
 
+## Ultimas Mudancas
+
+- Editor Monaco customizavel por aluno, com temas, fundos, fonte, tab size, minimapa, quebra de linha e preferencias persistidas.
+- Autocomplete C# expandido com snippets sensiveis ao exercicio e acao basica de formatacao.
+- Sistema de dicas progressivas por exercicio, com 4 niveis, revelacao opcional da solucao e penalidade de XP configuravel.
+- Novas tabelas e DTOs para `ExerciseHints`, `StudentHintUnlocks` e `StudentEditorSettings`.
+- Documentacao complementar em `EDITOR_EXPERIENCE.md` e `HINT_SYSTEM.md`, alem de notas de migracao para SQLite/PostgreSQL.
+
 ## Experiencia Do Produto
 
 ### Para alunos
@@ -299,7 +307,7 @@ dotnet tool run dotnet-ef migrations add NomeDaMigration `
 
 ## Roadmap Curto
 
-Veja [`CodePlatform/docs/ROADMAP.md`](CodePlatform/docs/ROADMAP.md) para a lista completa. Itens recem-concluidos: runner Roslyn, refresh tokens, FluentValidation, paginacao, rate limiting, Serilog, ErrorBoundary, lazy Monaco, suite de testes, pipeline CI.
+Veja [`CodePlatform/docs/ROADMAP.md`](CodePlatform/docs/ROADMAP.md) para a lista completa. Itens recem-concluidos: editor Monaco customizavel, dicas progressivas com penalidade de XP, runner Roslyn, refresh tokens, FluentValidation, paginacao, rate limiting, Serilog, ErrorBoundary, lazy Monaco, suite de testes, pipeline CI.
 
 ## Identidade Visual
 
